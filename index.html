@@ -114,11 +114,12 @@
 
   /* ============================== AUTOTRADE CONSOLE ============================== */
   .mf-at{display:grid;grid-template-columns:1fr 360px;gap:20px}
+  .mf-at>div{min-width:0}
   .mf-at h4{margin:2px 0 8px;font-size:13px;font-weight:700;color:var(--mf-ink)}
   .mf-steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px}
   .mf-steps li{font-size:13px;color:var(--mf-ink);line-height:1.6}
-  .mf-steps code{font-family:var(--mf-mono);font-size:12px;background:var(--mf-elevated);border:1px solid var(--mf-hairline);border-radius:4px;padding:1px 6px;color:var(--mf-down-ink)}
-  .mf-warn{margin-top:14px;background:var(--mf-down-soft);border:1px solid rgba(246,70,93,.3);border-left:3px solid var(--mf-down);border-radius:var(--mf-r8);padding:12px 14px;font-size:12.5px;color:var(--mf-down-ink);line-height:1.6}
+  .mf-steps code{font-family:var(--mf-mono);font-size:12px;background:var(--mf-elevated);border:1px solid var(--mf-hairline);border-radius:4px;padding:1px 6px;color:var(--mf-down-ink);overflow-wrap:anywhere}
+  .mf-warn{margin-top:14px;background:var(--mf-down-soft);border:1px solid rgba(246,70,93,.3);border-left:3px solid var(--mf-down);border-radius:var(--mf-r8);padding:12px 14px;font-size:12.5px;color:var(--mf-down-ink);line-height:1.6;overflow-wrap:anywhere}
   .mf-warn b{color:#a51e35}
   .mf-connect{background:var(--mf-surface-2);border:1px solid var(--mf-hairline);border-radius:var(--mf-r8);padding:14px}
   .mf-connect__row{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -274,7 +275,7 @@
               <select id="mf-cfg-sym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option><option value="XRPUSDT">XRP/USDT</option></select>
             </div>
             <div class="mf-field"><label>Max order (USDT)</label><input id="mf-cfg-max" type="number" value="15" min="1" /></div>
-            <div class="mf-field"><label>OpenRouter model</label><input id="mf-cfg-model" type="text" value="anthropic/claude-3.5-sonnet" /></div>
+            <div class="mf-field"><label>OpenRouter model</label><input id="mf-cfg-model" type="text" value="anthropic/claude-fable-5" /></div>
           </div>
           <div class="mf-env">
             <div class="mf-env__head"><span>ไฟล์ .env (คัดลอกไปวาง)</span><button class="mf-btn" id="mf-env-copy">คัดลอก</button></div>
@@ -378,7 +379,7 @@
       <span class="mf-pill mf-pill--live" style="padding:4px 9px"><span class="mf-dot"></span>Agent ออนไลน์</span>
       <span>Model Claude-Fable-5</span><span>Trader 0x06dc···4524 · 5,944 Fills</span><span>Latency 108s</span>
     </div>
-    <div class="mf-foot__r">Stack ANGLERFISH-CORE · Fable-Fork</div>
+    <div class="mf-foot__r">Stack ANGLERFISH-CORE · Fable-Fork · v1.0.0</div>
   </footer>
 </div>
 
@@ -487,7 +488,7 @@ MIRO.registerModule('equity', function (container, api) {
   function ccxtSym(s){ return s.replace('USDT','/USDT'); }
   function esc(s){ return String(s).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];}); }
   function renderEnv(){
-    var sym=ccxtSym(symSel.value), mx=maxIn.value||'15', model=modelIn.value||'anthropic/claude-3.5-sonnet';
+    var sym=ccxtSym(symSel.value), mx=maxIn.value||'15', model=modelIn.value||'anthropic/claude-fable-5';
     var L=[
       ['c','# ANGLERFISH · Claude Fable 5 — .env (เก็บไฟล์นี้เป็นความลับ ห้าม commit)'],
       ['s','BINANCE_API_KEY=','<วางคีย์ Binance ของคุณ>'],
@@ -504,7 +505,18 @@ MIRO.registerModule('equity', function (container, api) {
     }).join('\n');
   }
   function plainEnv(){ return envOut.textContent; }
-  copyBtn.addEventListener('click', function(){ try{ navigator.clipboard.writeText(plainEnv()); copyBtn.textContent='คัดลอกแล้ว ✓'; setTimeout(function(){copyBtn.textContent='คัดลอก';},1500);}catch(e){} });
+  copyBtn.addEventListener('click', function(){
+    var text=plainEnv();
+    function ok(){ copyBtn.textContent='คัดลอกแล้ว ✓'; setTimeout(function(){copyBtn.textContent='คัดลอก';},1500); }
+    function fallback(){
+      var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='0'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var done=false; try{ done=document.execCommand('copy'); }catch(e){} document.body.removeChild(ta);
+      if(done){ ok(); } else { copyBtn.textContent='เลือกข้อความแล้วกด Ctrl/⌘+C'; setTimeout(function(){copyBtn.textContent='คัดลอก';},2500); }
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(ok).catch(fallback); }
+    else { fallback(); }
+  });
   [symSel,maxIn,modelIn].forEach(function(el){ el.addEventListener('input',renderEnv); el.addEventListener('change',function(){renderEnv();fetchPx();}); });
   renderEnv();
 

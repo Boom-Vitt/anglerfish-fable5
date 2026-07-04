@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import re
 import sys
@@ -197,7 +196,7 @@ def load_config() -> Config:
         binance_api_key=os.getenv("BINANCE_API_KEY", ""),
         binance_api_secret=os.getenv("BINANCE_API_SECRET", ""),
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
-        openrouter_model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet"),
+        openrouter_model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-fable-5"),
         symbol=os.getenv("SYMBOL", "BTC/USDT"),
         timeframe=os.getenv("TIMEFRAME", "1h"),
         dry_run=parse_bool(os.getenv("DRY_RUN"), default=True),
@@ -474,9 +473,26 @@ def call_openrouter(cfg: Config, features: dict[str, Any]) -> str:
     }
 
     response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-    response.raise_for_status()
+    if response.status_code >= 400:
+        body = (response.text or "")[:300]
+        if response.status_code in (401, 403):
+            hint = "ตรวจสอบ OPENROUTER_API_KEY (คีย์อาจผิดหรือหมดอายุ) / check OPENROUTER_API_KEY"
+        elif response.status_code in (400, 404):
+            hint = (f"ตรวจสอบ OPENROUTER_MODEL — โมเดล '{cfg.openrouter_model}' "
+                    f"อาจไม่ถูกต้องหรือถูกยกเลิก (ดูรายชื่อที่ https://openrouter.ai/models) / "
+                    f"check OPENROUTER_MODEL, it may be invalid or deprecated")
+        elif response.status_code == 429:
+            hint = "ถูกจำกัดอัตราการเรียก (rate limit) — รอสักครู่ / rate-limited, backing off"
+        else:
+            hint = "OpenRouter server error"
+        raise RuntimeError(f"OpenRouter HTTP {response.status_code}: {hint} :: {body}")
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(
+            f"OpenRouter response has no choices/content (model refusal or unexpected shape): "
+            f"{str(data)[:300]}") from exc
 
 
 @dataclass
