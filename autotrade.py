@@ -406,7 +406,7 @@ def build_market_features(ohlcv: list[list[float]], ticker: dict[str, Any]) -> d
     highs = [candle[2] for candle in ohlcv]
     lows = [candle[3] for candle in ohlcv]
 
-    last_price = float(ticker.get("last") or closes[-1] if closes else 0.0)
+    last_price = float(ticker.get("last") or (closes[-1] if closes else 0.0))
     sma20 = sma(closes, 20)
     sma50 = sma(closes, 50)
     rsi14 = rsi(closes, 14)

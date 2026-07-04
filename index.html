@@ -1942,7 +1942,7 @@ MIRO.registerModule('graph', function (container, api) {
         if (pulses[i].p >= 1) {
           pulses[i].p -= 1;
           // occasionally hop to a new non-median edge to keep it lively
-          if ((Math.sin((t + i) * 12.9) * 43758.5) % 1 > 0.6) {
+          var _hp = Math.abs(Math.sin((t + i) * 12.9) * 43758.5); if ((_hp - Math.floor(_hp)) > 0.55) {
             var tries = 0, ne;
             do { ne = (Math.abs(Math.sin((t + i * 7.3) * 91.7) * 1000) | 0) % edges.length; tries++; }
             while (edges[ne] && edges[ne].median && tries < 8);
