@@ -1,0 +1,5 @@
+# ANGLERFISH · Claude Fable 5 — Autotrade Engine
+# Dependencies kept minimal on purpose (safety/audit surface stays small).
+ccxt>=4.2
+requests>=2.31
+python-dotenv>=1.0

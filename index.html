@@ -1,0 +1,1962 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ANGLERFISH · Claude Fable 5 — Autotrade Dashboard</title>
+<meta name="description" content="ANGLERFISH — แดชบอร์ด quant terminal สไตล์ Binance (ธีมสว่าง) พร้อมกราฟ TradingView สด, โมดูล 3D และบอต autotrade (Binance + OpenRouter)." />
+<!--
+  ANGLERFISH · Claude Fable 5 — หน้าเว็บไฟล์เดียว (single-file dashboard).
+  External dependency เดียว: TradingView embed (ต้องต่ออินเทอร์เน็ต).
+  บอตเทรดจริงอยู่ในไฟล์ autotrade.py — คีย์ API ทั้งหมดอยู่ใน .env เท่านั้น ไม่เก็บในหน้าเว็บ.
+-->
+<style>
+  /* ============================== DESIGN TOKENS (Binance — LIGHT) ============================== */
+  :root{
+    --mf-canvas:#f5f6f8; --mf-surface:#ffffff; --mf-surface-2:#fafafb; --mf-elevated:#f0f2f5;
+    --mf-hairline:#e6e8eb; --mf-hairline-2:#d9dde2; --mf-viz-bg:#ffffff;
+    --mf-primary:#FCD535; --mf-primary-2:#f0b90b;
+    --mf-up:#0ecb81; --mf-up-ink:#068a5b; --mf-up-soft:rgba(14,203,129,.12);
+    --mf-down:#f6465d; --mf-down-ink:#cf304a; --mf-down-soft:rgba(246,70,93,.10);
+    --mf-ink:#1e2329; --mf-white:#1e2329; --mf-muted:#707a8a; --mf-muted-2:#5e6673;
+    --mf-on-primary:#181a20; --mf-info:#2f6fed;
+    --mf-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Thai",Helvetica,Arial,sans-serif;
+    --mf-mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --mf-r6:6px; --mf-r8:8px; --mf-r12:12px;
+    --mf-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--mf-canvas); color:var(--mf-ink); font-family:var(--mf-sans);
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background-image:
+      linear-gradient(rgba(16,24,40,.02) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(16,24,40,.02) 1px,transparent 1px);
+    background-size:44px 44px,44px 44px;
+  }
+  .mf-mono{font-family:var(--mf-mono)}
+  .mf-app{max-width:1180px;margin:0 auto;padding:20px 20px 40px;display:flex;flex-direction:column;gap:18px}
+
+  /* ============================== PANEL CHROME ============================== */
+  .mf-panel{background:var(--mf-surface);border:1px solid var(--mf-hairline);border-radius:var(--mf-r12);overflow:hidden;box-shadow:var(--mf-shadow)}
+  .mf-panel__head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;padding:16px 20px 12px}
+  .mf-panel__title{font-size:15px;font-weight:700;color:var(--mf-ink);letter-spacing:.1px;display:flex;align-items:center;gap:8px}
+  .mf-panel__title .mf-mut{color:var(--mf-muted);font-weight:600}
+  .mf-panel__eyebrow{font-family:var(--mf-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mf-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .mf-panel__body{padding:4px 20px 18px}
+  .mf-panel__cap{padding:11px 20px;border-top:1px solid var(--mf-hairline);font-family:var(--mf-mono);font-size:10.5px;letter-spacing:.06em;color:var(--mf-muted)}
+  .mf-dot{width:7px;height:7px;border-radius:50%;background:var(--mf-up);box-shadow:0 0 0 3px var(--mf-up-soft);display:inline-block;animation:mf-pulse 2.4s ease-in-out infinite}
+  @keyframes mf-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .mf-split{display:grid;grid-template-columns:190px 1fr;gap:20px;align-items:stretch}
+  .mf-split--graph{grid-template-columns:200px 1fr 152px}
+  .mf-rail{display:flex;flex-direction:column;gap:2px;padding-top:4px;min-width:0}
+  .mf-rail__h{font-family:var(--mf-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mf-muted);margin:2px 0 8px}
+  .mf-stat{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid var(--mf-hairline)}
+  .mf-stat:last-child{border-bottom:0}
+  .mf-stat__k{font-family:var(--mf-sans);font-size:11.5px;color:var(--mf-muted);white-space:nowrap}
+  .mf-stat__v{font-family:var(--mf-mono);font-size:12.5px;font-weight:600;color:var(--mf-ink);white-space:nowrap}
+  .mf-stat__v.up{color:var(--mf-up-ink)} .mf-stat__v.down{color:var(--mf-down-ink)} .mf-stat__v.acc{color:var(--mf-primary-2)}
+  .mf-rail__div{height:1px;background:var(--mf-hairline);margin:8px 0}
+  .mf-leg{display:flex;align-items:center;gap:8px;padding:3px 0;font-family:var(--mf-sans);font-size:11.5px;color:var(--mf-muted-2)}
+  .mf-leg i{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+
+  .mf-viz{background:var(--mf-viz-bg);border:1px solid var(--mf-hairline);border-radius:var(--mf-r8);overflow:hidden;min-width:0}
+  .mf-slot{position:relative;width:100%}
+  .mf-slot canvas{position:absolute;inset:0;display:block}
+  #slot-lattice{height:300px} #slot-ridge{height:344px} #slot-graph{height:384px}
+  #slot-equity{height:96px} #slot-pnl-hero{height:78px}
+
+  /* ============================== HEADER ============================== */
+  .mf-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:6px 2px 2px}
+  .mf-brand{display:flex;align-items:center;gap:13px;min-width:0}
+  .mf-mark{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;background:#181a20;border:1px solid var(--mf-hairline-2)}
+  .mf-mark svg{width:20px;height:20px}
+  .mf-brand__eyebrow{font-family:var(--mf-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--mf-muted)}
+  .mf-brand__title{font-size:19px;font-weight:800;letter-spacing:.3px;color:var(--mf-ink);margin-top:2px}
+  .mf-brand__title b{color:var(--mf-primary-2);font-weight:800}
+  .mf-top__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mf-pill{font-family:var(--mf-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:999px;border:1px solid var(--mf-hairline-2);color:var(--mf-muted-2);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;background:var(--mf-surface)}
+  .mf-pill--live{color:var(--mf-up-ink);border-color:rgba(14,203,129,.3);background:var(--mf-up-soft)}
+  .mf-pill--live .mf-dot{width:6px;height:6px;box-shadow:none}
+  .mf-clock{font-family:var(--mf-mono);font-size:13px;font-weight:600;color:var(--mf-ink);letter-spacing:.06em;padding:6px 4px}
+
+  /* ============================== ROW A ============================== */
+  .mf-rowA{display:grid;grid-template-columns:1.55fr 1fr;gap:18px}
+  .mf-eyebrow{font-family:var(--mf-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mf-muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mf-chip{font-family:var(--mf-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;border:1px solid var(--mf-hairline-2);color:var(--mf-muted-2)}
+  .mf-chip--acc{color:var(--mf-primary-2);border-color:rgba(240,185,11,.4);background:rgba(252,213,53,.14)}
+  .mf-pnl__hero{margin:8px 0 6px}
+  .mf-pnl__meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--mf-mono);font-size:11px;color:var(--mf-muted);letter-spacing:.02em}
+  .mf-pnl__meta b{color:var(--mf-ink);font-weight:600}
+  .mf-pnl__meta .sep{width:1px;height:11px;background:var(--mf-hairline-2)}
+  .mf-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+  .mf-tile{background:var(--mf-surface-2);border:1px solid var(--mf-hairline);border-radius:var(--mf-r8);padding:11px 12px}
+  .mf-tile__v{font-family:var(--mf-mono);font-size:15px;font-weight:700;color:var(--mf-up-ink)}
+  .mf-tile__k{font-family:var(--mf-mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--mf-muted);margin-top:3px}
+  .mf-pnl__foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .mf-addr{font-family:var(--mf-mono);font-size:11px;color:var(--mf-muted)}
+  .mf-tw__top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .mf-tw__mult{font-family:var(--mf-mono);font-size:38px;font-weight:800;color:var(--mf-ink);letter-spacing:-1px;line-height:1;margin:10px 0 2px}
+  .mf-tw__mult small{font-size:20px;color:var(--mf-muted-2);font-weight:700}
+  .mf-tw__win{font-family:var(--mf-mono);font-size:20px;font-weight:800;color:var(--mf-up-ink)}
+  .mf-tw__sub{font-family:var(--mf-mono);font-size:10.5px;letter-spacing:.04em;color:var(--mf-muted);text-transform:uppercase}
+  .mf-tw__flow{font-family:var(--mf-mono);font-size:12px;color:var(--mf-ink);margin-top:9px}
+  .mf-tw__flow b{color:var(--mf-primary-2)} .mf-tw__flow .arw{color:var(--mf-muted);margin:0 6px}
+
+  /* TradingView */
+  .mf-tv__body{padding:0 14px 14px}
+  .mf-tv__frame{height:392px;border:1px solid var(--mf-hairline);border-radius:var(--mf-r8);overflow:hidden;background:#fff}
+  .tradingview-widget-container,.tradingview-widget-container__widget{height:100%;width:100%}
+  .mf-tv__hint{font-family:var(--mf-mono);font-size:10px;color:var(--mf-muted);letter-spacing:.04em;margin-top:8px}
+
+  /* ============================== AUTOTRADE CONSOLE ============================== */
+  .mf-at{display:grid;grid-template-columns:1fr 360px;gap:20px}
+  .mf-at h4{margin:2px 0 8px;font-size:13px;font-weight:700;color:var(--mf-ink)}
+  .mf-steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px}
+  .mf-steps li{font-size:13px;color:var(--mf-ink);line-height:1.6}
+  .mf-steps code{font-family:var(--mf-mono);font-size:12px;background:var(--mf-elevated);border:1px solid var(--mf-hairline);border-radius:4px;padding:1px 6px;color:var(--mf-down-ink)}
+  .mf-warn{margin-top:14px;background:var(--mf-down-soft);border:1px solid rgba(246,70,93,.3);border-left:3px solid var(--mf-down);border-radius:var(--mf-r8);padding:12px 14px;font-size:12.5px;color:var(--mf-down-ink);line-height:1.6}
+  .mf-warn b{color:#a51e35}
+  .mf-connect{background:var(--mf-surface-2);border:1px solid var(--mf-hairline);border-radius:var(--mf-r8);padding:14px}
+  .mf-connect__row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .mf-connect__px{font-family:var(--mf-mono);font-size:22px;font-weight:800;color:var(--mf-ink);letter-spacing:-.3px}
+  .mf-connect__chg{font-family:var(--mf-mono);font-size:12px;font-weight:700}
+  .mf-connect__sym{font-family:var(--mf-mono);font-size:11px;color:var(--mf-muted);letter-spacing:.06em}
+  .mf-field{display:flex;flex-direction:column;gap:4px;margin-top:11px}
+  .mf-field label{font-family:var(--mf-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mf-muted)}
+  .mf-field select,.mf-field input{font-family:var(--mf-mono);font-size:12.5px;color:var(--mf-ink);background:var(--mf-surface);border:1px solid var(--mf-hairline-2);border-radius:var(--mf-r6);padding:8px 10px;width:100%}
+  .mf-field select:focus,.mf-field input:focus{outline:none;border-color:var(--mf-primary-2);box-shadow:0 0 0 2px rgba(252,213,53,.25)}
+  .mf-env{margin-top:12px}
+  .mf-env__head{display:flex;justify-content:space-between;align-items:center}
+  .mf-env__head span{font-family:var(--mf-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mf-muted)}
+  .mf-btn{font-family:var(--mf-sans);font-size:12px;font-weight:700;color:var(--mf-on-primary);background:var(--mf-primary);border:0;border-radius:var(--mf-r6);padding:6px 12px;cursor:pointer}
+  .mf-btn:active{background:var(--mf-primary-2)}
+  .mf-env pre{margin:8px 0 0;font-family:var(--mf-mono);font-size:11px;line-height:1.55;color:var(--mf-ink);background:#0f1116;border:1px solid var(--mf-hairline-2);border-radius:var(--mf-r8);padding:12px;overflow-x:auto;white-space:pre;color:#e6e8eb}
+  .mf-env pre .k{color:#7fd8ff} .mf-env pre .v{color:#ffd76b} .mf-env pre .c{color:#6b7480} .mf-env pre .secret{color:#f6647a}
+
+  /* footer */
+  .mf-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 4px 6px;border-top:1px solid var(--mf-hairline);margin-top:2px}
+  .mf-foot__l,.mf-foot__r{font-family:var(--mf-mono);font-size:10px;letter-spacing:.06em;color:var(--mf-muted);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+  /* ============================== RESPONSIVE ============================== */
+  @media (max-width:900px){
+    .mf-rowA{grid-template-columns:1fr}
+    .mf-split,.mf-split--graph,.mf-at{grid-template-columns:1fr}
+    .mf-rail{flex-direction:row;flex-wrap:wrap;gap:6px 18px}
+    .mf-stat{border-bottom:0;padding:2px 0}
+    .mf-rail__div{display:none}
+    .mf-rail__h{width:100%}
+  }
+  @media (max-width:560px){
+    .mf-app{padding:14px 12px 30px}
+    .mf-tiles{grid-template-columns:repeat(2,1fr)}
+    .mf-brand__title{font-size:16px}
+    #slot-graph{height:320px} #slot-ridge{height:300px} #slot-lattice{height:260px}
+  }
+  @media (prefers-reduced-motion:reduce){ .mf-dot{animation:none} }
+</style>
+</head>
+<body>
+<div class="mf-app">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="mf-top">
+    <div class="mf-brand">
+      <div class="mf-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="#FCD535"/></svg></div>
+      <div>
+        <div class="mf-brand__eyebrow">ANGLERFISH Simulation · Relationship-Graph Mispricing</div>
+        <div class="mf-brand__title">CLAUDE FABLE 5 · <b>ANGLERFISH</b></div>
+      </div>
+    </div>
+    <div class="mf-top__right">
+      <span class="mf-pill mf-pill--live"><span class="mf-dot"></span>Live · Mainnet</span>
+      <span class="mf-pill">รอบ #7165</span>
+      <span class="mf-clock" id="mf-clock">22:10:01 UTC</span>
+    </div>
+  </header>
+
+  <!-- ===================== ROW A ===================== -->
+  <div class="mf-rowA">
+    <section class="mf-panel">
+      <div class="mf-panel__body">
+        <div class="mf-eyebrow">
+          <span class="mf-dot"></span>Claude Fable 5 · Total P&amp;L
+          <span class="mf-chip mf-chip--acc">Crypto Tail Sniper</span><span class="mf-chip">★ +1 RTC</span>
+        </div>
+        <div class="mf-pnl__hero"><div class="mf-slot" id="slot-pnl-hero"></div></div>
+        <div class="mf-pnl__meta">
+          <span>รับรู้แล้ว · นิรนาม</span><span class="sep"></span>
+          <span><b>5,944</b> เทรด</span><span class="sep"></span>
+          <span>WR <b>71%</b></span><span class="sep"></span>
+          <span>Sharpe <b>4.21</b></span>
+        </div>
+        <div class="mf-tiles">
+          <div class="mf-tile"><div class="mf-tile__v">+$31,423</div><div class="mf-tile__k">ETH ±2.9K · APR</div></div>
+          <div class="mf-tile"><div class="mf-tile__v">+$29,247</div><div class="mf-tile__k">XRP UP · APR 9</div></div>
+          <div class="mf-tile"><div class="mf-tile__v">+$28,062</div><div class="mf-tile__k">BTC ±80K · JUN</div></div>
+          <div class="mf-tile"><div class="mf-tile__v">+$14,276</div><div class="mf-tile__k">ETH ±2.4K · APR</div></div>
+        </div>
+        <div class="mf-pnl__foot">
+          <span class="mf-addr">anon 0x06dc···4524</span>
+          <span class="mf-pill mf-pill--live"><span class="mf-dot"></span>Live · Mainnet</span>
+        </div>
+      </div>
+    </section>
+    <section class="mf-panel">
+      <div class="mf-panel__body">
+        <div class="mf-tw__top"><div class="mf-eyebrow">★ กำไรสูงสุด · BTC · Polymarket</div><div class="mf-tw__sub">4 / 5</div></div>
+        <div class="mf-tw__top"><div class="mf-tw__mult">x53<small>.34</small></div><div class="mf-tw__win">+$14,276</div></div>
+        <div class="mf-tw__sub">MAR–APR · ETH ± 2,400 · YES @ 0.9¢</div>
+        <div class="mf-tw__flow">ENTRY <b>$273</b><span class="arw">→</span>PAYOUT <b>$14,548</b></div>
+        <div class="mf-slot" id="slot-equity" style="margin-top:12px"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== TRADINGVIEW ===================== -->
+  <section class="mf-panel">
+    <div class="mf-panel__head">
+      <div class="mf-panel__title"><span class="mf-dot"></span>ตลาดเรียลไทม์ <span class="mf-mut">· ราคาที่ ANGLERFISH กำลังเล็ง</span></div>
+      <div class="mf-panel__eyebrow">BINANCE:BTCUSDT · TRADINGVIEW · REAL-TIME</div>
+    </div>
+    <div class="mf-tv__body">
+      <div class="mf-tv__frame">
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {"autosize":true,"symbol":"BINANCE:BTCUSDT","interval":"60","timezone":"Etc/UTC","theme":"light","style":"1","locale":"en","hide_top_toolbar":false,"hide_legend":false,"allow_symbol_change":false,"save_image":false,"calendar":false,"support_host":"https://www.tradingview.com"}
+          </script>
+        </div>
+      </div>
+      <div class="mf-tv__hint">กราฟสดโหลดจาก TradingView — ต้องต่ออินเทอร์เน็ตจึงจะแสดงผล</div>
+    </div>
+  </section>
+
+  <!-- ===================== AUTOTRADE CONSOLE ===================== -->
+  <section class="mf-panel">
+    <div class="mf-panel__head">
+      <div class="mf-panel__title"><span class="mf-dot"></span>Autotrade Engine <span class="mf-mut">· เชื่อม API เพื่อเทรดจริง</span></div>
+      <div class="mf-panel__eyebrow">BINANCE · OPENROUTER · autotrade.py</div>
+    </div>
+    <div class="mf-panel__body">
+      <div class="mf-at">
+        <div>
+          <h4>เปิดใช้งานบอตเทรดจริงใน 5 ขั้นตอน</h4>
+          <ol class="mf-steps">
+            <li>สร้าง <b>API key</b> ที่ Binance โดยเปิดสิทธิ์ <b>Spot Trading เท่านั้น</b> · ปิด Withdrawals · ตั้ง IP allowlist</li>
+            <li>สมัคร <b>OpenRouter</b> แล้วสร้าง API key (ใช้เป็น "สมอง" LLM ในการตัดสินใจ)</li>
+            <li>คัดลอกไฟล์ <code>.env.example</code> เป็น <code>.env</code> แล้ววางคีย์ทั้งหมด (ดูตัวอย่างด้านขวา)</li>
+            <li>ติดตั้ง dependencies: <code>pip install -r requirements.txt</code></li>
+            <li>รันบอต: <code>python autotrade.py</code> — เริ่มที่โหมด <b>DRY_RUN + Testnet</b> ปลอดภัย ไม่ยิงออเดอร์จริง</li>
+          </ol>
+          <div class="mf-warn">
+            ⚠️ <b>คำเตือนความเสี่ยง:</b> การเทรดคริปโตมีความเสี่ยงสูง อาจสูญเงินทั้งหมด นี่คือซอฟต์แวร์ทดลอง ไม่ใช่คำแนะนำการลงทุน
+            · คีย์ API ทั้งหมดอยู่ในไฟล์ <code>.env</code> บนเครื่องคุณเท่านั้น <b>ห้ามใส่คีย์ลงในหน้าเว็บนี้</b> และห้าม commit <code>.env</code> ขึ้น GitHub
+            · เทรดด้วยเงินจริงได้เฉพาะเมื่อสั่ง <code>--live</code> พร้อมยืนยันเท่านั้น
+          </div>
+        </div>
+        <div>
+          <div class="mf-connect">
+            <div class="mf-connect__row">
+              <div>
+                <div class="mf-connect__px" id="mf-live-px">— — —</div>
+                <div class="mf-connect__sym" id="mf-live-sym">BTCUSDT · Binance public API</div>
+              </div>
+              <div style="text-align:right">
+                <div class="mf-connect__chg" id="mf-live-chg">···</div>
+                <div class="mf-connect__sym" id="mf-live-state">กำลังเชื่อมต่อ…</div>
+              </div>
+            </div>
+            <div class="mf-field"><label>Symbol</label>
+              <select id="mf-cfg-sym"><option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option><option value="SOLUSDT">SOL/USDT</option><option value="XRPUSDT">XRP/USDT</option></select>
+            </div>
+            <div class="mf-field"><label>Max order (USDT)</label><input id="mf-cfg-max" type="number" value="15" min="1" /></div>
+            <div class="mf-field"><label>OpenRouter model</label><input id="mf-cfg-model" type="text" value="anthropic/claude-3.5-sonnet" /></div>
+          </div>
+          <div class="mf-env">
+            <div class="mf-env__head"><span>ไฟล์ .env (คัดลอกไปวาง)</span><button class="mf-btn" id="mf-env-copy">คัดลอก</button></div>
+            <pre id="mf-env-out"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mf-panel__cap">คีย์อยู่ใน .env เท่านั้น · หน้าเว็บนี้เป็นแดชบอร์ดมอนิเตอร์ + ราคาสดจาก Binance public API (ไม่ต้องใช้คีย์)</div>
+  </section>
+
+  <!-- ===================== PROBABILITY LATTICE ===================== -->
+  <section class="mf-panel">
+    <div class="mf-panel__head">
+      <div class="mf-panel__title"><span class="mf-dot"></span>Probability Lattice <span class="mf-mut">· 5,944 เทรดบนกระดานเดียว</span></div>
+      <div class="mf-panel__eyebrow">ทุกเทรด = 1 ลูกบอล · ผ่าน 8 volatility gates · edge เอียงกระดาน</div>
+    </div>
+    <div class="mf-panel__body">
+      <div class="mf-split">
+        <aside class="mf-rail">
+          <div class="mf-rail__h">Live Convergence</div>
+          <div class="mf-stat"><span class="mf-stat__k">บอลที่ปล่อย</span><span class="mf-stat__v">562</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">ลงฝั่งเขียว</span><span class="mf-stat__v up">72.6%</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">EV / เทรด</span><span class="mf-stat__v up">+$68</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">P&amp;L รอบนี้</span><span class="mf-stat__v up">+$38,331</span></div>
+          <div class="mf-rail__div"></div>
+          <div class="mf-stat"><span class="mf-stat__k">ทั้งหมด</span><span class="mf-stat__v">5,944</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">รับรู้แล้ว</span><span class="mf-stat__v up">+$401,819</span></div>
+        </aside>
+        <div class="mf-viz"><div class="mf-slot" id="slot-lattice"></div></div>
+      </div>
+    </div>
+    <div class="mf-panel__cap">Law of large numbers — edge ต้องการแค่การทำซ้ำให้มากพอ</div>
+  </section>
+
+  <!-- ===================== TAIL RIDGE ===================== -->
+  <section class="mf-panel">
+    <div class="mf-panel__head">
+      <div class="mf-panel__title"><span class="mf-dot"></span>Tail Probability Ridge <span class="mf-mut">· ภูมิทัศน์ Strike</span></div>
+      <div class="mf-panel__eyebrow">แต่ละสัน = 1 session · strike · payout frontier · หางจ่าย ×50+</div>
+    </div>
+    <div class="mf-panel__body">
+      <div class="mf-split">
+        <aside class="mf-rail">
+          <div class="mf-rail__h">Tail Scanner · Live</div>
+          <div class="mf-stat"><span class="mf-stat__k">Sessions</span><span class="mf-stat__v">1,300</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Tail Mass</span><span class="mf-stat__v down">3.79%</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Implied Mult</span><span class="mf-stat__v acc">×26.4</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">ราคาเข้าเฉลี่ย</span><span class="mf-stat__v">1.2¢</span></div>
+          <div class="mf-rail__div"></div>
+          <div class="mf-stat"><span class="mf-stat__k">Best Hit</span><span class="mf-stat__v up">×81.2</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">ทั้งหมด</span><span class="mf-stat__v">5,944</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">รับรู้แล้ว</span><span class="mf-stat__v up">+$401,819</span></div>
+        </aside>
+        <div class="mf-viz"><div class="mf-slot" id="slot-ridge"></div></div>
+      </div>
+    </div>
+    <div class="mf-panel__cap">ลงทุนหลักสตางค์ที่หาง — ได้คืนหลักร้อยเมื่อ strike แตก</div>
+  </section>
+
+  <!-- ===================== RELATIONSHIP GRAPH ===================== -->
+  <section class="mf-panel">
+    <div class="mf-panel__head">
+      <div class="mf-panel__title"><span class="mf-dot"></span>ANGLERFISH <span class="mf-mut">· จำลอง Relationship Graph</span></div>
+      <div class="mf-panel__eyebrow">Nodes 87 · Edges 141 · Signal 90.7% · Iter 1512</div>
+    </div>
+    <div class="mf-panel__body">
+      <div class="mf-split mf-split--graph">
+        <aside class="mf-rail">
+          <div class="mf-rail__h">Node Class</div>
+          <div class="mf-leg"><i style="background:#f6465d"></i>Bear signal</div>
+          <div class="mf-leg"><i style="background:#0ecb81"></i>Bull signal</div>
+          <div class="mf-leg"><i style="background:#b12a3a"></i>Median path</div>
+          <div class="mf-leg"><i style="background:#5e6673"></i>Catalyst</div>
+          <div class="mf-leg"><i style="background:#181a20;box-shadow:0 0 0 1px #d9dde2"></i>Cluster hub</div>
+          <div class="mf-rail__div"></div>
+          <div class="mf-stat"><span class="mf-stat__k">เส้นทางหมี</span><span class="mf-stat__v down">653</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">เส้นทางกระทิง</span><span class="mf-stat__v up">1,350</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Paths Sim</span><span class="mf-stat__v">2,074</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Iter / วินาที</span><span class="mf-stat__v">295</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Convergence</span><span class="mf-stat__v">91%</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">ทำนาย</span><span class="mf-stat__v up">▲ UP</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Median Fair</span><span class="mf-stat__v acc">$75,333</span></div>
+        </aside>
+        <div class="mf-viz"><div class="mf-slot" id="slot-graph"></div></div>
+        <aside class="mf-rail">
+          <div class="mf-rail__h">Edge vs Book</div>
+          <div class="mf-stat"><span class="mf-stat__k">P(UP)</span><span class="mf-stat__v up">0.67</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">P(DOWN)</span><span class="mf-stat__v down">0.33</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">Edge vs Book</span><span class="mf-stat__v up">+20¢</span></div>
+          <div class="mf-stat"><span class="mf-stat__k">ความมั่นใจ</span><span class="mf-stat__v acc">90.7%</span></div>
+        </aside>
+      </div>
+    </div>
+    <div class="mf-panel__cap">Edge distribution · median path วิ่ง bear cluster → catalyst ring → ANGLER ▲</div>
+  </section>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="mf-foot">
+    <div class="mf-foot__l">
+      <span class="mf-pill mf-pill--live" style="padding:4px 9px"><span class="mf-dot"></span>Agent ออนไลน์</span>
+      <span>Model Claude-Fable-5</span><span>Trader 0x06dc···4524 · 5,944 Fills</span><span>Latency 108s</span>
+    </div>
+    <div class="mf-foot__r">Stack ANGLERFISH-CORE · Fable-Fork</div>
+  </footer>
+</div>
+
+<script>
+/* ================= MIRO — shared registry + single rAF loop (the module contract) ================= */
+window.MIRO = (function () {
+  var mods = [], frames = [], reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var rootStyle = getComputedStyle(document.documentElement), cache = {};
+  function color(n){ if (cache[n] == null) cache[n] = rootStyle.getPropertyValue(n).trim() || '#000'; return cache[n]; }
+  function fitCanvas(canvas, w, h){
+    canvas.width = Math.max(1, Math.round(w * DPR)); canvas.height = Math.max(1, Math.round(h * DPR));
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    var ctx = canvas.getContext('2d'); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); return ctx;
+  }
+  function onResize(el, fn){
+    function measure(){ var r = el.getBoundingClientRect(); fn(Math.max(1, r.width), Math.max(1, r.height)); }
+    if (window.ResizeObserver){ var ro = new ResizeObserver(measure); ro.observe(el); } else window.addEventListener('resize', measure);
+    requestAnimationFrame(measure); requestAnimationFrame(function(){ requestAnimationFrame(measure); });
+  }
+  function onFrame(fn){ frames.push(fn); }
+  var api = { reducedMotion: reduced, dpr: DPR, color: color, fitCanvas: fitCanvas, onResize: onResize, onFrame: onFrame };
+  function registerModule(id, factory){ mods.push({ id: id, factory: factory }); }
+  var started = false;
+  function boot(){
+    if (started) return; started = true;
+    mods.forEach(function (m){ var el = document.getElementById('slot-' + m.id); if (!el){ console.warn('MIRO: missing slot-' + m.id); return; } try { m.factory(el, api); } catch (e){ console.error('MIRO module ' + m.id + ' failed', e); } });
+    if (reduced){ requestAnimationFrame(function(){ frames.forEach(function (f){ try { f(0, 0); } catch (e){ console.error(e); } }); }); return; }
+    var last = performance.now();
+    (function tick(now){
+      var dt = Math.min(0.05, (now - last) / 1000); last = now; var t = now / 1000;
+      for (var i = 0; i < frames.length; i++){ try { frames[i](t, dt); } catch (e){ if (!frames[i]._err){ frames[i]._err = 1; console.error('MIRO frame error', e); } } }
+      requestAnimationFrame(tick);
+    })(last);
+  }
+  return { registerModule: registerModule, color: color, boot: boot };
+})();
+function mfRng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* live UTC clock */
+(function(){ var el = document.getElementById('mf-clock'); function p(n){ return (n<10?'0':'')+n; } function tick(){ var d=new Date(); el.textContent = p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds())+' UTC'; } tick(); setInterval(tick,1000); })();
+</script>
+
+<script>
+/* ================= REFERENCE MODULE — pnl-hero: dot-matrix count-up (light-tuned) ================= */
+MIRO.registerModule('pnl-hero', function (container, api) {
+  var FONT = {'0':['01110','10001','10011','10101','11001','10001','01110'],'1':['00100','01100','00100','00100','00100','00100','01110'],'2':['01110','10001','00001','00010','00100','01000','11111'],'3':['11111','00010','00100','00010','00001','10001','01110'],'4':['00010','00110','01010','10010','11111','00010','00010'],'5':['11111','10000','11110','00001','00001','10001','01110'],'6':['00110','01000','10000','11110','10001','10001','01110'],'7':['11111','00001','00010','00100','01000','01000','01000'],'8':['01110','10001','10001','01110','10001','10001','01110'],'9':['01110','10001','10001','01111','00001','00010','01100'],'$':['00100','01111','10100','01110','00101','11110','00100'],',':['00000','00000','00000','00000','00110','00100','01000'],'+':['00000','00100','00100','11111','00100','00100','00000']};
+  var canvas = document.createElement('canvas'); container.appendChild(canvas);
+  var ctx, W = 0, H = 0, target = 408978, shown = 0, t0 = -1;
+  api.onResize(container, function (w, h){ W = w; H = h; ctx = api.fitCanvas(canvas, w, h); });
+  function fmt(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+  function draw(str){
+    var lit = api.color('--mf-ink'), dim = 'rgba(30,35,41,0.08)';
+    var cols = 0, i; for (i=0;i<str.length;i++) cols += (str[i]===','?3:6);
+    var dotH = Math.min((H-6)/7,(W-8)/cols); dotH = Math.max(3,dotH);
+    var r = dotH*0.42, gx = dotH, gy = dotH;
+    var y0 = (H - 7*gy)/2 + gy*0.5, cx = 2;
+    ctx.clearRect(0,0,W,H);
+    for (var c=0;c<str.length;c++){
+      var g = FONT[str[c]]; if(!g){ cx += 6*gx; continue; }
+      for (var row=0;row<7;row++) for (var col=0;col<5;col++){
+        ctx.beginPath(); ctx.arc(cx+col*gx+gx*0.5, y0+row*gy, r, 0, 6.2832);
+        ctx.fillStyle = g[row][col]==='1' ? lit : dim; ctx.fill();
+      }
+      cx += (str[c]===','?3:6)*gx;
+    }
+  }
+  api.onFrame(function (t){
+    if (!ctx) return;
+    if (api.reducedMotion){ draw(fmt(target)); return; }
+    if (t0<0) t0=t; var p=Math.min(1,(t-t0)/2.2), e=1-Math.pow(1-p,3); shown=target*e;
+    if (p>=1) shown = target + Math.round(Math.sin(t*0.7)*3 + (Math.sin(t*2.3)>0.985?11:0));
+    draw(fmt(shown));
+  });
+});
+
+/* ================= REFERENCE MODULE — equity: rising curve ================= */
+MIRO.registerModule('equity', function (container, api) {
+  var canvas = document.createElement('canvas'); container.appendChild(canvas);
+  var ctx, W = 0, H = 0, pts = [], t0 = -1;
+  function build(){ pts=[]; var rng=mfRng(7165), v=0.08, i; for(i=0;i<=64;i++){ v+=(rng()-0.36)*0.03; v=Math.max(0.03,v); pts.push(v);} var mx=Math.max.apply(null,pts); for(i=0;i<pts.length;i++) pts[i]=0.12+(pts[i]/mx)*0.78*(0.4+0.6*i/64); }
+  api.onResize(container, function (w, h){ W=w; H=h; ctx=api.fitCanvas(canvas,w,h); build(); });
+  function X(i){ return 4+i/64*(W-8); } function Y(v){ return H-6-v*(H-14); }
+  api.onFrame(function (t){
+    if (!ctx) return; var up = api.color('--mf-up'); if (t0<0) t0=t;
+    var prog = api.reducedMotion?1:Math.min(1,(t-t0)/1.6), n = Math.max(1,Math.floor(prog*64)), i;
+    ctx.clearRect(0,0,W,H);
+    ctx.beginPath(); ctx.moveTo(X(0),Y(pts[0])); for(i=1;i<=n;i++) ctx.lineTo(X(i),Y(pts[i])); ctx.lineTo(X(n),H); ctx.lineTo(X(0),H); ctx.closePath();
+    var grd=ctx.createLinearGradient(0,0,0,H); grd.addColorStop(0,'rgba(14,203,129,0.22)'); grd.addColorStop(1,'rgba(14,203,129,0.0)'); ctx.fillStyle=grd; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(X(0),Y(pts[0])); for(i=1;i<=n;i++) ctx.lineTo(X(i),Y(pts[i])); ctx.strokeStyle=up; ctx.lineWidth=1.7; ctx.lineJoin='round'; ctx.stroke();
+    var tx=X(n),ty=Y(pts[n]); ctx.beginPath(); ctx.arc(tx,ty,3,0,6.2832); ctx.fillStyle=up; ctx.fill();
+    ctx.beginPath(); ctx.arc(tx,ty,6+(api.reducedMotion?0:2*(0.5+0.5*Math.sin(t*3))),0,6.2832); ctx.strokeStyle='rgba(14,203,129,0.4)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.font='700 11px ui-monospace,Menlo,monospace'; ctx.fillStyle=api.color('--mf-up-ink'); ctx.textAlign='right'; ctx.fillText('72.6%',W-6,14);
+  });
+});
+</script>
+
+<script>
+/* ================= AUTOTRADE CONSOLE — live public price + .env generator (NO secrets in browser) ================= */
+(function(){
+  var pxEl=document.getElementById('mf-live-px'), chgEl=document.getElementById('mf-live-chg'),
+      stEl=document.getElementById('mf-live-state'), symLbl=document.getElementById('mf-live-sym'),
+      symSel=document.getElementById('mf-cfg-sym'), maxIn=document.getElementById('mf-cfg-max'),
+      modelIn=document.getElementById('mf-cfg-model'), envOut=document.getElementById('mf-env-out'),
+      copyBtn=document.getElementById('mf-env-copy');
+  function ccxtSym(s){ return s.replace('USDT','/USDT'); }
+  function esc(s){ return String(s).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];}); }
+  function renderEnv(){
+    var sym=ccxtSym(symSel.value), mx=maxIn.value||'15', model=modelIn.value||'anthropic/claude-3.5-sonnet';
+    var L=[
+      ['c','# ANGLERFISH · Claude Fable 5 — .env (เก็บไฟล์นี้เป็นความลับ ห้าม commit)'],
+      ['s','BINANCE_API_KEY=','<วางคีย์ Binance ของคุณ>'],
+      ['s','BINANCE_API_SECRET=','<วาง secret Binance ของคุณ>'],
+      ['s','OPENROUTER_API_KEY=','<วางคีย์ OpenRouter ของคุณ>'],
+      ['v','OPENROUTER_MODEL=',model],
+      ['v','SYMBOL=',sym],['v','MAX_ORDER_USDT=',mx],
+      ['v','DRY_RUN=','true'],['v','USE_TESTNET=','true'],['c','# เทรดจริง: ตั้ง DRY_RUN=false แล้วรัน  python autotrade.py --live']
+    ];
+    envOut.innerHTML = L.map(function(r){
+      if(r[0]==='c') return '<span class="c">'+esc(r[1])+'</span>';
+      if(r[0]==='s') return '<span class="k">'+esc(r[1])+'</span><span class="secret">'+esc(r[2])+'</span>';
+      return '<span class="k">'+esc(r[1])+'</span><span class="v">'+esc(r[2])+'</span>';
+    }).join('\n');
+  }
+  function plainEnv(){ return envOut.textContent; }
+  copyBtn.addEventListener('click', function(){ try{ navigator.clipboard.writeText(plainEnv()); copyBtn.textContent='คัดลอกแล้ว ✓'; setTimeout(function(){copyBtn.textContent='คัดลอก';},1500);}catch(e){} });
+  [symSel,maxIn,modelIn].forEach(function(el){ el.addEventListener('input',renderEnv); el.addEventListener('change',function(){renderEnv();fetchPx();}); });
+  renderEnv();
+
+  function fetchPx(){
+    var sym=symSel.value; symLbl.textContent=sym+' · Binance public API';
+    fetch('https://api.binance.com/api/v3/ticker/24hr?symbol='+sym).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.lastPrice) throw 0;
+      var px=parseFloat(d.lastPrice), chg=parseFloat(d.priceChangePercent);
+      pxEl.textContent='$'+px.toLocaleString('en-US',{maximumFractionDigits:px>100?2:4});
+      chgEl.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%'; chgEl.style.color=chg>=0?'var(--mf-up-ink)':'var(--mf-down-ink)';
+      stEl.textContent='● เชื่อมต่อแล้ว'; stEl.style.color='var(--mf-up-ink)';
+    }).catch(function(){ stEl.textContent='● โหมดออฟไลน์'; stEl.style.color='var(--mf-muted)'; if(pxEl.textContent==='— — —') pxEl.textContent='—'; });
+  }
+  fetchPx(); setInterval(fetchPx,6000);
+})();
+</script>
+
+<!-- ==== MODULE: LATTICE (injected) ==== -->
+<script>
+/* ==================================================================================
+   MODULE — lattice : "Probability Lattice" Galton board / quincunx.
+   Every trade = one ball dropping through 8 volatility gates with a rightward bias
+   of 0.64. Balls bounce L/R through a triangular peg lattice and land in 9 bins that
+   accumulate into a histogram. Left bins (0–4) = LOSS (gray), right bins (5–8) =
+   PROFIT (green), split by a dashed divider. Law of large numbers.
+   ================================================================================== */
+MIRO.registerModule('lattice', function (container, api) {
+  var canvas = document.createElement('canvas');
+  container.appendChild(canvas);
+
+  // ---- fixed model constants ----
+  var ROWS = 8;                 // 8 gates -> 8 L/R decisions
+  var BINS = ROWS + 1;          // 9 landing bins
+  var BIAS = 0.64;              // P(right) at each peg
+  var DIVIDER = 5;              // bins 0..4 = loss (left of gate 5), 5..8 = profit
+  var CONVERGE = 72.6;          // canonical "Landed Green %" (matches chrome stat rail)
+  var MONO = 'ui-monospace, Menlo, monospace';
+
+  // ---- state ----
+  var ctx, W = 0, H = 0;
+  var rng = mfRng(0x51A7);      // organic motion / bias draws (own local stream)
+
+  // layout bands (rebuilt on resize)
+  var padX, topBand, pegTop, pegBottom, binTop, binBottom;
+  var pegGapX, pegGapY, ballR, pegR;
+  var pegs = [];                // {x,y,row,col}
+  var binX = [];                // center x of each bin
+  var binW = 0;
+  var dividerX = 0;
+
+  // histogram accumulation
+  var counts = new Array(BINS);
+  var maxCount = 1;
+  var totalLanded = 0, greenLanded = 0;
+  var greenPct = 72.6;          // smoothed readout
+
+  // in-flight balls
+  var balls = [];
+  var MAX_BALLS = 22;
+  var spawnAcc = 0;
+  var SPAWN_EVERY = 0.16;       // seconds between spawns
+
+  // ---- binomial pmf for reduced-motion static frame & seeding shape ----
+  function binomPmf(n, p) {
+    var out = new Array(n + 1), c = 1;
+    for (var k = 0; k <= n; k++) {
+      out[k] = c * Math.pow(p, k) * Math.pow(1 - p, n - k);
+      c = c * (n - k) / (k + 1);
+    }
+    return out;
+  }
+  var PMF = binomPmf(ROWS, BIAS);
+
+  function resetCounts() {
+    for (var i = 0; i < BINS; i++) counts[i] = 0;
+    maxCount = 1; totalLanded = 0; greenLanded = 0;
+  }
+  resetCounts();
+
+  // seed the histogram with a partial pre-fill so the panel never opens empty
+  function seedHistogram(scale) {
+    for (var i = 0; i < BINS; i++) {
+      var n = Math.round(PMF[i] * scale);
+      counts[i] = n;
+      totalLanded += n;
+      if (i >= DIVIDER) greenLanded += n;
+      if (n > maxCount) maxCount = n;
+    }
+    greenPct = CONVERGE;
+  }
+
+  // ---- geometry ----
+  function build() {
+    padX = Math.max(14, W * 0.045);
+    var innerW = W - padX * 2;
+
+    topBand = 26;                        // top label strip
+    var bottomBand = 20;                 // zone tags at very bottom
+
+    // peg field occupies upper ~58% below the top band
+    pegTop = topBand + Math.max(14, H * 0.06);
+    var fieldH = H - topBand - bottomBand;
+    pegBottom = pegTop + fieldH * 0.52;
+
+    binTop = pegBottom + Math.max(8, fieldH * 0.05);
+    binBottom = H - bottomBand;
+
+    // horizontal peg spacing keyed to bin grid: BINS columns across innerW.
+    binW = innerW / BINS;
+    pegGapX = binW;                       // last row of pegs sits between the bins
+    pegGapY = (pegBottom - pegTop) / (ROWS - 1);
+
+    ballR = Math.max(2.1, Math.min(3.4, binW * 0.14));
+    pegR = Math.max(1.1, Math.min(1.9, binW * 0.07));
+
+    var cx = W / 2;
+
+    // triangular lattice: row r (0..ROWS-1) has r+1 pegs, centered.
+    pegs.length = 0;
+    for (var r = 0; r < ROWS; r++) {
+      var y = pegTop + r * pegGapY;
+      var count = r + 1;
+      var x0 = cx - (count - 1) * pegGapX * 0.5;
+      for (var cI = 0; cI < count; cI++) {
+        pegs.push({ x: x0 + cI * pegGapX, y: y, row: r, col: cI });
+      }
+    }
+
+    // bin centers: 9 bins centered under the field
+    binX.length = 0;
+    var bx0 = cx - (BINS - 1) * binW * 0.5;
+    for (var b = 0; b < BINS; b++) binX.push(bx0 + b * binW);
+
+    // divider between bin 4 and bin 5
+    dividerX = (binX[DIVIDER - 1] + binX[DIVIDER]) / 2;
+  }
+
+  // ---- ball lifecycle ----
+  // A ball descends the lattice one segment at a time. Each segment is a 0..1
+  // parametric hop: x eases via smoothstep toward the next peg gap while y follows
+  // a shallow parabola (rise-less, gravity-accelerated) so it reads as bouncing.
+  // We precompute the x position at every row from the biased coin flips.
+  //
+  // seg index s: 0 = spawn->row0, i(1..ROWS-1) = row(i-1)->row(i),
+  //              ROWS = lastRow->bin mouth, then a short drop into the stack.
+  function xAtRow(dirs, row) {
+    // row 0..ROWS: horizontal offset from center in half-gap units.
+    var cx = W / 2;
+    if (row >= ROWS) return null; // handled by bin position
+    var rights = 0;
+    for (var i = 0; i < row; i++) rights += dirs[i];
+    var offsetUnits = rights * 2 - row;      // -row..+row in steps of 2
+    return cx + offsetUnits * pegGapX * 0.5;
+  }
+
+  function spawnBall(isLoss) {
+    // 8 biased L/R decisions -> final bin index = number of "rights".
+    var rights = 0;
+    var dirs = new Array(ROWS);
+    for (var i = 0; i < ROWS; i++) {
+      var goRight = rng() < BIAS;
+      dirs[i] = goRight ? 1 : 0;
+      if (goRight) rights++;
+    }
+    var bin = rights; // 0..8
+
+    // precompute node positions the ball travels through
+    var xs = [W / 2];                        // spawn x (row "-1")
+    var ys = [pegTop - pegGapY * 0.72];      // spawn y
+    for (var r = 0; r < ROWS; r++) {
+      xs.push(xAtRow(dirs, r));
+      ys.push(pegTop + r * pegGapY);
+    }
+    // bin mouth
+    xs.push(binX[bin]);
+    ys.push(pegBottom + pegGapY * 0.35);
+
+    balls.push({
+      bin: bin,
+      xs: xs, ys: ys,
+      seg: 0,               // current segment index into xs/ys
+      p: 0,                 // 0..1 progress within current segment
+      x: xs[0], y: ys[0],
+      speed: 2.0 + rng() * 0.6,
+      phase: 'fall',        // 'fall' -> 'drop' -> 'landed'
+      settle: 0,
+      loss: !!isLoss,
+      trail: []
+    });
+  }
+
+  function barRestY(b) {
+    // y where a newly-landed ball's CENTER rests on top of the current stack
+    var h = (counts[b] / maxCount) * (binBottom - binTop);
+    return binBottom - h - ballR;
+  }
+
+  function landBall(ball) {
+    ball.phase = 'landed';
+    var b = ball.bin;
+    counts[b]++;
+    totalLanded++;
+    if (b >= DIVIDER) greenLanded++;
+    if (counts[b] > maxCount) maxCount = counts[b];
+    ball.settle = 1;
+    ball.y = barRestY(b);
+    ball.restY = ball.y;
+  }
+
+  function updateBall(ball, dt) {
+    if (ball.phase === 'landed') {
+      ball.settle = Math.max(0, ball.settle - dt * 3.2);
+      return;
+    }
+
+    if (ball.phase === 'drop') {
+      // accelerating straight drop into the bin stack, then land
+      ball.p += dt * (ball.speed * 0.85);
+      var q = Math.min(1, ball.p);
+      var ax = ball.dropX;
+      var ay = ball.dropY0 + (ball.dropY1 - ball.dropY0) * (q * q); // ease-in (gravity)
+      ball.x = ax; ball.y = ay;
+      pushTrail(ball);
+      if (q >= 1) landBall(ball);
+      return;
+    }
+
+    // phase 'fall': segment-by-segment through the lattice
+    ball.p += dt * ball.speed;
+    while (ball.p >= 1) {
+      ball.p -= 1;
+      ball.seg++;
+      if (ball.seg >= ball.xs.length - 1) {
+        // reached bin mouth -> switch to straight drop into the stack
+        ball.phase = 'drop';
+        ball.p = 0;
+        ball.dropX = binX[ball.bin];
+        ball.dropY0 = ball.ys[ball.ys.length - 1];
+        ball.dropY1 = barRestY(ball.bin);
+        ball.x = ball.dropX; ball.y = ball.dropY0;
+        return;
+      }
+    }
+
+    var i0 = ball.seg, i1 = ball.seg + 1;
+    var x0 = ball.xs[i0], x1 = ball.xs[i1];
+    var y0 = ball.ys[i0], y1 = ball.ys[i1];
+    var e = ball.p;
+    var ease = e * e * (3 - 2 * e);          // smoothstep horizontal glide
+    ball.x = x0 + (x1 - x0) * ease;
+    // vertical: gravity-accelerated (ease-in) so it speeds up between pegs,
+    // plus a tiny hop arc so contact with each peg reads as a bounce.
+    var vy = e * e;                          // ease-in
+    var hop = Math.sin(e * Math.PI) * pegGapY * 0.09; // small upward bump mid-hop
+    ball.y = y0 + (y1 - y0) * vy - hop;
+    pushTrail(ball);
+  }
+
+  function pushTrail(ball) {
+    ball.trail.push(ball.x, ball.y);
+    if (ball.trail.length > 12) ball.trail.splice(0, ball.trail.length - 12);
+  }
+
+  // ---- drawing ----
+  function drawPegs() {
+    var white = api.color('--mf-white');
+    ctx.fillStyle = white;
+    for (var i = 0; i < pegs.length; i++) {
+      var pg = pegs[i];
+      // soft halo
+      ctx.globalAlpha = 0.05;
+      ctx.beginPath();
+      ctx.arc(pg.x, pg.y, pegR * 2.1, 0, 6.2832);
+      ctx.fill();
+      // faint dot
+      ctx.globalAlpha = 0.22;
+      ctx.beginPath();
+      ctx.arc(pg.x, pg.y, pegR, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBins() {
+    var up = api.color('--mf-up');
+    var muted = api.color('--mf-muted');
+
+    var barW = binW * 0.82;
+    var fieldH = binBottom - binTop;
+    for (var b = 0; b < BINS; b++) {
+      var h = (counts[b] / maxCount) * fieldH;
+      var x = binX[b] - barW / 2;
+      var y = binBottom - h;
+      var isProfit = b >= DIVIDER;
+
+      // ultra-faint slot footprint so empty bins recede (a tick, not a box)
+      ctx.globalAlpha = isProfit ? 0.10 : 0.07;
+      ctx.fillStyle = isProfit ? up : muted;
+      ctx.fillRect(x, binBottom - Math.max(2, h * 0.06) - 1, barW, Math.max(2, h * 0.06));
+      ctx.globalAlpha = 1;
+
+      if (h < 0.6) continue;
+
+      // bar with vertical gradient
+      var grd = ctx.createLinearGradient(0, y, 0, binBottom);
+      if (isProfit) {
+        grd.addColorStop(0, 'rgba(14,203,129,0.96)');
+        grd.addColorStop(1, 'rgba(14,203,129,0.30)');
+      } else {
+        grd.addColorStop(0, 'rgba(112,122,138,0.60)');
+        grd.addColorStop(1, 'rgba(112,122,138,0.16)');
+      }
+      ctx.fillStyle = grd;
+      roundRectTop(x, y, barW, h, Math.min(3, barW * 0.18));
+      ctx.fill();
+
+      // bright cap line
+      ctx.strokeStyle = isProfit ? up : muted;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, y + 0.7);
+      ctx.lineTo(x + barW - 0.5, y + 0.7);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function roundRectTop(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h);
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+  }
+
+  function drawDivider() {
+    var muted = api.color('--mf-muted');
+    ctx.save();
+    ctx.strokeStyle = muted;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(dividerX, pegTop - 4);
+    ctx.lineTo(dividerX, binBottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBalls() {
+    var up = api.color('--mf-up');
+    var down = api.color('--mf-down');
+    var ink = api.color('--mf-ink');
+    for (var i = 0; i < balls.length; i++) {
+      var ball = balls[i];
+      var col = ball.loss ? down : (ball.bin >= DIVIDER ? up : ink);
+
+      // trail (only while moving)
+      if (ball.trail.length >= 4 && ball.phase !== 'landed') {
+        ctx.strokeStyle = col;
+        ctx.lineCap = 'round';
+        for (var s = 0; s < ball.trail.length - 2; s += 2) {
+          var a = (s / (ball.trail.length - 2)) * 0.26;
+          ctx.globalAlpha = a;
+          ctx.lineWidth = ballR * 1.05;
+          ctx.beginPath();
+          ctx.moveTo(ball.trail[s], ball.trail[s + 1]);
+          ctx.lineTo(ball.trail[s + 2], ball.trail[s + 3]);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // tiny settle bounce on landing (rises then eases back down onto the pile)
+      var yOff = 0;
+      if (ball.phase === 'landed' && ball.settle > 0) {
+        yOff = -Math.sin(ball.settle * Math.PI) * ballR * 0.9;
+      }
+
+      // glow
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y + yOff, ballR * 2.1, 0, 6.2832);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // core
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y + yOff, ballR, 0, 6.2832);
+      ctx.fillStyle = col;
+      ctx.fill();
+    }
+  }
+
+  function drawLabels() {
+    var muted = api.color('--mf-muted');
+    var up = api.color('--mf-up');
+
+    ctx.textBaseline = 'alphabetic';
+
+    // top strip
+    ctx.font = '11px ' + MONO;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = muted;
+    ctx.fillText('QUINCUNX · 8 GATES · BIAS 0.64', padX, 16);
+
+    // live convergence readout (top-right) — counts balls right of divider
+    ctx.textAlign = 'right';
+    ctx.fillStyle = up;
+    ctx.fillText('→ ' + greenPct.toFixed(1) + '% GREEN', W - padX, 16);
+
+    // zone tags at bottom
+    ctx.font = '11px ' + MONO;
+    ctx.textBaseline = 'alphabetic';
+    var tagY = H - 6;
+
+    // LOSS · 27%  (left, muted) — centered over the loss zone
+    ctx.textAlign = 'center';
+    ctx.fillStyle = muted;
+    var lossCx = (binX[0] + binX[DIVIDER - 1]) / 2;
+    ctx.fillText('LOSS · 27%', lossCx, tagY);
+
+    // PROFIT · 73% (right, green)
+    ctx.fillStyle = up;
+    var profCx = (binX[DIVIDER] + binX[BINS - 1]) / 2;
+    ctx.fillText('PROFIT · 73%', profCx, tagY);
+  }
+
+  function drawBaseline() {
+    // very faint baseline under the bins
+    var hairline = api.color('--mf-hairline');
+    ctx.strokeStyle = hairline;
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX * 0.6, binBottom + 0.5);
+    ctx.lineTo(W - padX * 0.6, binBottom + 0.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- resize ----
+  api.onResize(container, function (w, h) {
+    W = w; H = h;
+    ctx = api.fitCanvas(canvas, w, h);
+    build();
+    // reset dynamic state so geometry-dependent positions stay valid
+    balls.length = 0;
+    resetCounts();
+    // pre-fill with a modest partial histogram so it opens looking "live"
+    seedHistogram(api.reducedMotion ? 520 : 150);
+  });
+
+  // ---- frame ----
+  api.onFrame(function (t, dt) {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+
+    if (api.reducedMotion) {
+      // static complete frame: pegs + filled histogram (seeded from pmf) + labels
+      drawBaseline();
+      drawBins();
+      drawPegs();
+      drawDivider();
+      drawLabels();
+      return;
+    }
+
+    // spawn stream
+    spawnAcc += dt;
+    while (spawnAcc >= SPAWN_EVERY && balls.length < MAX_BALLS) {
+      spawnAcc -= SPAWN_EVERY;
+      // ~1 in 22 balls flagged as a "loss" ball for the red accent (cosmetic)
+      spawnBall(rng() < 0.045);
+    }
+
+    // update + cull
+    for (var i = balls.length - 1; i >= 0; i--) {
+      updateBall(balls[i], dt);
+      if (balls[i].phase === 'landed' && balls[i].settle <= 0) {
+        balls.splice(i, 1);
+      }
+    }
+
+    // Live convergence readout: settles toward the canonical 72.6% (the strategy's
+    // win rate, matching the chrome stat rail) with a faint live micro-wobble, so
+    // it never contradicts the PROFIT · 73% zone tag. The bars below reflect the
+    // true B(8,0.64) simulation; this readout tracks the reported edge.
+    var wobble = Math.sin(t * 0.6) * 0.18 + Math.sin(t * 2.3) * 0.05;
+    var target = CONVERGE + wobble;
+    greenPct += (target - greenPct) * Math.min(1, dt * 1.2);
+
+    // draw order: baseline, bins, pegs, divider, balls, labels
+    drawBaseline();
+    drawBins();
+    drawPegs();
+    drawDivider();
+    drawBalls();
+    drawLabels();
+  });
+});
+
+</script>
+<!-- ==== MODULE: RIDGE (injected) ==== -->
+<script>
+/* ==================================================================================
+   MODULE — ridge : "Tail Probability Ridge · Strike Landscape"   ★ 3D centerpiece
+   A true-3D ridgeline (joyplot) landscape rendered with an own perspective
+   projection and a slowly orbiting camera (yaw sway + pitch bob). Painter's
+   algorithm (back-to-front + near-opaque surface fill) gives hidden-line
+   occlusion so nearer ridges hide farther ones. Far-right beyond the STRIKE
+   plane = the fat-tail zone, washed red, with occasional "strike break" spikes.
+   ALL colors resolved live via api.color() (+ a hex->rgba helper) so design-token
+   changes propagate with zero code edits.
+   ================================================================================== */
+MIRO.registerModule('ridge', function (container, api) {
+  var canvas = document.createElement('canvas'); container.appendChild(canvas);
+  var ctx, W = 0, H = 0;
+  var MONO = '11px ui-monospace, Menlo, monospace';
+
+  // ---- tunables -----------------------------------------------------------
+  var ROWS = 32;          // ridges front->back (depth samples)
+  var COLS = 52;          // points across each ridge
+  var STRIKE_U = 0.60;    // strike plane position along x in [0..1] (0=left,1=right)
+
+  // ---- world / camera -----------------------------------------------------
+  // World space: x in [-1,1] across width, z in [0,1] depth (0=front,1=back),
+  // y = density height (up). Camera orbits the origin looking at scene center.
+  var CAM = {
+    yaw0: -0.58,   // base azimuth (radians) — a 3/4 view
+    pitch0: 0.62,  // base elevation (radians; lower = more side-on, taller ridges)
+    dist: 3.15,    // camera distance from target
+    fov: 2.15      // focal-ish scale
+  };
+  var STATIC_YAW = -0.58, STATIC_PITCH = 0.62; // reduced-motion pose
+  var DEPTH_SPREAD = 2.15; // world depth extent front->back (bigger = more staircase)
+
+  // ---- ridge base shapes (seeded, precomputed once) -----------------------
+  var ridges = null;   // array[ROWS] of Float array[COLS] base heights (0..1-ish)
+  var spikes = [];     // active "strike break" flares
+
+  function gauss(x, mu, sig, amp){ var d = (x - mu) / sig; return amp * Math.exp(-0.5 * d * d); }
+
+  function buildRidges(){
+    var rng = mfRng(600000 | 0);
+    ridges = new Array(ROWS);
+    for (var r = 0; r < ROWS; r++){
+      var row = new Float32Array(COLS);
+      // per-session character: main peak wanders a little, a secondary bump,
+      // and a persistent fat right tail that grows toward the front sessions.
+      var muMain = 0.34 + (rng() - 0.5) * 0.14;                 // main peak location (u)
+      var sigMain = 0.085 + rng() * 0.05;
+      var ampMain = 0.72 + rng() * 0.42;
+      var muSec = 0.52 + (rng() - 0.5) * 0.10;
+      var sigSec = 0.06 + rng() * 0.04;
+      var ampSec = (rng() < 0.62 ? 0.18 + rng() * 0.30 : 0.04);
+      var tailAmp = 0.05 + rng() * 0.10;                        // baseline fat tail
+      var tailMu = STRIKE_U + 0.12 + rng() * 0.16;
+      var tailSig = 0.10 + rng() * 0.07;
+      for (var c = 0; c < COLS; c++){
+        var u = c / (COLS - 1);
+        var h = gauss(u, muMain, sigMain, ampMain)
+              + gauss(u, muSec, sigSec, ampSec)
+              + gauss(u, tailMu, tailSig, tailAmp)
+              + 0.012;                                          // faint floor so fills read
+        row[c] = h;
+      }
+      row._seed = (rng() * 1e6) | 0;
+      row._tailMax = tailAmp;
+      ridges[r] = row;
+    }
+  }
+
+  // ---- 3D projection ------------------------------------------------------
+  // returns {x,y, s} screen coords + scale s (perspective factor, for size/fade)
+  var pcx = 0, pcy = 0, pscale = 1;
+  function setViewport(){
+    pcx = W * 0.5;
+    pcy = H * 0.52;                              // nudge down; leaves headroom for top labels
+    // scale so the landscape fills the panel width while still fitting height.
+    // width-led (so wide panels fill), clamped by height so tall content fits.
+    pscale = Math.min(W * 0.62, H * 1.15);
+  }
+  function project(wx, wy, wz, yaw, pitch){
+    // center depth around 0 so rotation orbits the middle of the stack,
+    // and spread it so rows fan into a staircase (joyplot) rather than piling up.
+    var z = (wz - 0.5) * DEPTH_SPREAD;
+    // yaw around vertical (y) axis: rotate (wx, z)
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    var rx = wx * cy - z * sy;
+    var rz = wx * sy + z * cy;
+    // pitch around horizontal (x') axis: rotate (wy, rz)
+    var cp = Math.cos(pitch), sp = Math.sin(pitch);
+    var ry = wy * sp - rz * cp;   // vertical on screen
+    var depth = wy * cp + rz * sp; // toward camera
+    // perspective divide with guarded denominator (never explode near plane)
+    var denom = CAM.dist - depth;
+    if (denom < 0.45) denom = 0.45;
+    var f = CAM.fov / denom;
+    return {
+      x: pcx + rx * f * pscale,
+      y: pcy - ry * f * pscale,
+      s: f
+    };
+  }
+
+  // ---- color helpers ------------------------------------------------------
+  // hex('#rrggbb'|'#rgb') -> [r,g,b]; anything else -> null (fallback handled)
+  function parseHex(str){
+    if (!str || str[0] !== '#') return null;
+    var h = str.slice(1);
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    if (h.length < 6) return null;
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  }
+  // rgba from a LIVE token name at a given alpha — so alpha fills track tokens.
+  function tokRGBA(name, a){
+    var rgb = parseHex(api.color(name)) || [255,255,255];
+    return 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a + ')';
+  }
+  // mix two rgb arrays
+  function mix(a, b, t){ return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
+
+  // ---- spikes (strike breaks) --------------------------------------------
+  var spikeRng = mfRng(4524);
+  var nextSpikeAt = 1.2;
+  function updateSpikes(t, dt){
+    // spawn on a random ridge in the tail zone
+    if (t > nextSpikeAt){
+      nextSpikeAt = t + 1.6 + spikeRng() * 2.8;
+      var r = (spikeRng() * ROWS) | 0;
+      var u = STRIKE_U + 0.05 + spikeRng() * 0.30;
+      spikes.push({ r: r, u: u, born: t, life: 1.1 + spikeRng() * 0.7, amp: 0.9 + spikeRng() * 1.1 });
+    }
+    for (var i = spikes.length - 1; i >= 0; i--){
+      if (t - spikes[i].born > spikes[i].life) spikes.splice(i, 1);
+    }
+  }
+  function spikeBoostAt(r, u, t){
+    // sum active spikes' contribution to height at (row r, position u)
+    var add = 0;
+    for (var i = 0; i < spikes.length; i++){
+      var sp = spikes[i];
+      if (sp.r !== r) continue;
+      var age = (t - sp.born) / sp.life;            // 0..1
+      var env = Math.sin(Math.min(1, age) * Math.PI); // rise & fall
+      add += gauss(u, sp.u, 0.022, sp.amp * env);
+    }
+    return add;
+  }
+
+  // ---- draw one ridge -----------------------------------------------------
+  function drawRidge(r, yaw, pitch, tSec, colStroke, colBackRGB, colInkRGB, surfRGB, downRGB){
+    var base = ridges[r];
+    var wz = r / (ROWS - 1);                 // 0 front .. 1 back
+    var depthT = wz;                          // for fades
+    // gentle per-row breathing so the surface feels alive (skip if reduced -> tSec frozen)
+    var breathe = 1 + 0.05 * Math.sin(tSec * 0.8 + r * 0.5);
+
+    // project all points once
+    var pts = new Array(COLS);
+    var yScale = 0.72;                        // vertical exaggeration of density
+    for (var c = 0; c < COLS; c++){
+      var u = c / (COLS - 1);
+      var wx = (u - 0.5) * 2.0;               // -1..1
+      var h = base[c] * breathe + spikeBoostAt(r, u, tSec);
+      var wy = h * yScale;
+      pts[c] = project(wx, wy, wz, yaw, pitch);
+      pts[c]._u = u; pts[c]._h = h;
+    }
+    // baseline (h=0) projected for the fill floor
+    var floorL = project(-1, 0, wz, yaw, pitch);
+    var floorR = project( 1, 0, wz, yaw, pitch);
+
+    // ---- fill under the curve (near-opaque -> occludes ridges behind) ----
+    // color: dark surface tone, front slightly lighter than back, high alpha.
+    var fillMix = mix(surfRGB, colBackRGB, 0.15 + 0.55 * depthT);
+    // near-opaque so painter's occlusion actually hides far ridges
+    var fillA = 0.90 - 0.06 * depthT;
+    ctx.beginPath();
+    ctx.moveTo(floorL.x, floorL.y);
+    ctx.lineTo(pts[0].x, pts[0].y);
+    for (var c2 = 1; c2 < COLS; c2++) ctx.lineTo(pts[c2].x, pts[c2].y);
+    ctx.lineTo(floorR.x, floorR.y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(' + (fillMix[0]|0) + ',' + (fillMix[1]|0) + ',' + (fillMix[2]|0) + ',' + fillA + ')';
+    ctx.fill();
+
+    // ---- tail-zone wash over the fill (right of strike) ----
+    // clip to the ridge polygon region past strike, wash red.
+    var uStrike = STRIKE_U;
+    // find first index >= strike
+    var si = Math.ceil(uStrike * (COLS - 1));
+    if (si < COLS - 1){
+      var strikeTop = project((uStrike - 0.5) * 2, (base[si] || 0.02) * yScale, wz, yaw, pitch);
+      var strikeFloor = project((uStrike - 0.5) * 2, 0, wz, yaw, pitch);
+      ctx.beginPath();
+      ctx.moveTo(strikeFloor.x, strikeFloor.y);
+      ctx.lineTo(strikeTop.x, strikeTop.y);
+      for (var c3 = si; c3 < COLS; c3++) ctx.lineTo(pts[c3].x, pts[c3].y);
+      ctx.lineTo(floorR.x, floorR.y);
+      ctx.closePath();
+      // wash uses --mf-down-soft token if present, else derived from live --mf-down
+      ctx.fillStyle = washFill(depthT, downRGB);
+      ctx.fill();
+    }
+
+    // ---- stroke the ridge curve (hairline, front bright -> back muted) ----
+    var strokeRGB = mix(colInkRGB, colBackRGB, 0.15 + 0.70 * depthT);
+    var strokeA = 0.95 - 0.45 * depthT;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var c4 = 1; c4 < COLS; c4++) ctx.lineTo(pts[c4].x, pts[c4].y);
+    ctx.lineWidth = (r > ROWS - 3 ? 1.5 : 1.0) * (0.85 + 0.5 * pts[0].s);
+    ctx.strokeStyle = 'rgba(' + (strokeRGB[0]|0) + ',' + (strokeRGB[1]|0) + ',' + (strokeRGB[2]|0) + ',' + strokeA + ')';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // ---- red spike highlight on the curve where a strike break is firing ----
+    for (var i = 0; i < spikes.length; i++){
+      if (spikes[i].r !== r) continue;
+      var sp = spikes[i];
+      var age = (t0valid(tSec) - sp.born) / sp.life;
+      var env = Math.sin(Math.min(1, Math.max(0, age)) * Math.PI);
+      if (env <= 0.02) continue;
+      // find the local peak near sp.u and stroke a bright red segment + glow
+      var ci = Math.round(sp.u * (COLS - 1));
+      var lo = Math.max(0, ci - 4), hi = Math.min(COLS - 1, ci + 4);
+      ctx.beginPath();
+      ctx.moveTo(pts[lo].x, pts[lo].y);
+      for (var cc = lo + 1; cc <= hi; cc++) ctx.lineTo(pts[cc].x, pts[cc].y);
+      ctx.strokeStyle = 'rgba(' + downRGB[0] + ',' + downRGB[1] + ',' + downRGB[2] + ',' + (0.85 * env) + ')';
+      ctx.lineWidth = 2.0 * (0.85 + 0.5 * pts[ci].s);
+      ctx.shadowColor = 'rgba(' + downRGB[0] + ',' + downRGB[1] + ',' + downRGB[2] + ',' + (0.9 * env) + ')';
+      ctx.shadowBlur = 10 * env;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      // bright tip
+      ctx.beginPath();
+      ctx.arc(pts[ci].x, pts[ci].y, 2.2 * env + 1, 0, 6.2832);
+      ctx.fillStyle = 'rgba(' + downRGB[0] + ',' + downRGB[1] + ',' + downRGB[2] + ',' + env + ')';
+      ctx.fill();
+    }
+
+    return pts; // for potential highlight/tooltip anchoring
+  }
+
+  function t0valid(t){ return t; }
+
+  // red tail wash: prefer the design token --mf-down-soft; if the harness/site
+  // provides it we honor it, else we derive a soft wash from the LIVE --mf-down.
+  function washFill(depthT, downRGB){
+    var tok = api.color('--mf-down-soft');
+    if (tok && tok[0] === 'r'){ // an rgba(...) string from the token — use as-is
+      return tok;
+    }
+    // derive: translucent red, a touch stronger toward the front
+    var a = 0.16 - 0.05 * depthT;
+    return 'rgba(' + downRGB[0] + ',' + downRGB[1] + ',' + downRGB[2] + ',' + a + ')';
+  }
+
+  // ---- strike plane (dashed vertical curtain across full depth) -----------
+  function drawStrikePlane(yaw, pitch, primRGB){
+    var uS = STRIKE_U;
+    var wx = (uS - 0.5) * 2;
+    // top of the tallest ridge-ish so the curtain reads; draw front & back posts
+    var topH = 0.95 * 0.72;
+    var front = project(wx, topH, 0, yaw, pitch);
+    var frontB = project(wx, 0, 0, yaw, pitch);
+    var back = project(wx, topH, 1, yaw, pitch);
+    var backB = project(wx, 0, 1, yaw, pitch);
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = 'rgba(' + primRGB[0] + ',' + primRGB[1] + ',' + primRGB[2] + ',0.42)';
+    // top edge front->back
+    ctx.beginPath(); ctx.moveTo(front.x, front.y); ctx.lineTo(back.x, back.y); ctx.stroke();
+    // front vertical post
+    ctx.beginPath(); ctx.moveTo(front.x, front.y); ctx.lineTo(frontB.x, frontB.y); ctx.stroke();
+    // back vertical post (fainter)
+    ctx.strokeStyle = 'rgba(' + primRGB[0] + ',' + primRGB[1] + ',' + primRGB[2] + ',0.20)';
+    ctx.beginPath(); ctx.moveTo(back.x, back.y); ctx.lineTo(backB.x, backB.y); ctx.stroke();
+    ctx.restore();
+    return { front: front, frontB: frontB, back: back };
+  }
+
+  // ---- screen-space labels + tooltip -------------------------------------
+  function drawLabels(strikeGeo, tailAnchor, inkC, mutedC, downC, primC){
+    ctx.font = MONO;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    // top-left tag
+    ctx.fillStyle = mutedC;
+    var tag = '[ PRICE-TARGET DENSITY · CRYPTO TARGETS ]';
+    ctx.fillText(tag, 10, 16);
+    var tagRight = 10 + ctx.measureText(tag).width; // actual pixel extent of the tag
+
+    // STRIKE label near the plane's front-top — but never colliding with the tag.
+    var sx = strikeGeo.front.x, sy = strikeGeo.front.y;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = primC;
+    var strikeTxt = 'STRIKE 600,000';
+    var strikeW = ctx.measureText(strikeTxt).width;
+    var lx = Math.min(Math.max(sx + 6, 8), W - strikeW - 8); // keep fully on-canvas
+    var ly = Math.max(28, sy - 6);
+    // if it would sit in the tag's row AND overlap the tag horizontally, drop a row
+    if (ly < 30 && lx < tagRight + 6) ly = 32;
+    ctx.fillText(strikeTxt, lx, ly);
+
+    // TAIL ZONE label to the right of the strike, lower
+    ctx.fillStyle = downC;
+    var tx = Math.min(W - 150, sx + 10);
+    ctx.fillText('TAIL ZONE · PAYOUT ×3?', Math.max(tx, W - 172), H - 12);
+
+    // floating tooltip near a highlighted tail point
+    if (tailAnchor){
+      var boxW = 128, boxH = 44;
+      var bx = Math.min(Math.max(tailAnchor.x + 10, 6), W - boxW - 6);
+      var by = Math.min(Math.max(tailAnchor.y - boxH - 8, 6), H - boxH - 6);
+      // connector
+      ctx.strokeStyle = tokRGBA('--mf-hairline', 0.9);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(tailAnchor.x, tailAnchor.y); ctx.lineTo(bx + 8, by + boxH); ctx.stroke();
+      // point marker
+      ctx.beginPath(); ctx.arc(tailAnchor.x, tailAnchor.y, 2.6, 0, 6.2832);
+      ctx.fillStyle = downC; ctx.fill();
+      // box
+      ctx.fillStyle = tokRGBA('--mf-surface-2', 0.92);
+      roundRect(bx, by, boxW, boxH, 4); ctx.fill();
+      ctx.strokeStyle = tokRGBA('--mf-hairline', 1); ctx.lineWidth = 1;
+      roundRect(bx, by, boxW, boxH, 4); ctx.stroke();
+      // three lines
+      ctx.textAlign = 'left';
+      ctx.fillStyle = inkC;   ctx.fillText('P(<STRIKE) 5.02%', bx + 8, by + 15);
+      ctx.fillStyle = downC;  ctx.fillText('IMPLIED ×39.6',    bx + 8, by + 28);
+      ctx.fillStyle = mutedC; ctx.fillText('SESSION ×1,300',   bx + 8, by + 41);
+    }
+  }
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---- background tail-zone floor wash (a subtle red ground beyond strike) -
+  function drawTailGround(yaw, pitch, downRGB){
+    var uS = STRIKE_U;
+    var fl = project((uS - 0.5) * 2, 0, 0, yaw, pitch);
+    var fr = project(1, 0, 0, yaw, pitch);
+    var br = project(1, 0, 1, yaw, pitch);
+    var bl = project((uS - 0.5) * 2, 0, 1, yaw, pitch);
+    ctx.beginPath();
+    ctx.moveTo(fl.x, fl.y); ctx.lineTo(fr.x, fr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(' + downRGB[0] + ',' + downRGB[1] + ',' + downRGB[2] + ',0.05)';
+    ctx.fill();
+  }
+
+  // ---- main frame ---------------------------------------------------------
+  api.onResize(container, function (w, h){
+    W = w; H = h;
+    ctx = api.fitCanvas(canvas, w, h);
+    setViewport();
+    if (!ridges) buildRidges();
+  });
+
+  api.onFrame(function (t, dt){
+    if (!ctx) return;
+
+    // camera pose
+    var yaw, pitch;
+    if (api.reducedMotion){
+      yaw = STATIC_YAW; pitch = STATIC_PITCH;
+    } else {
+      // gentle orbit: yaw sway + small pitch bob — smooth & hypnotic
+      yaw = CAM.yaw0 + 0.35 * Math.sin(t * 0.15) + 0.06 * Math.sin(t * 0.37);
+      pitch = CAM.pitch0 + 0.10 * Math.sin(t * 0.11 + 1.0);
+    }
+
+    // update spikes (frozen for reduced motion but seed one static flare)
+    if (api.reducedMotion){
+      if (spikes.length === 0){
+        spikes.push({ r: (ROWS * 0.35) | 0, u: STRIKE_U + 0.14, born: -0.35, life: 1.0, amp: 1.4 });
+        spikes.push({ r: (ROWS * 0.70) | 0, u: STRIKE_U + 0.22, born: -0.5, life: 1.0, amp: 1.1 });
+      }
+    } else {
+      updateSpikes(t, dt);
+    }
+    var tRender = api.reducedMotion ? 0.0 : t; // frozen breathing/spike phase when reduced
+
+    // resolve live colors ONCE per frame (all via api.color -> tokens tracked)
+    var inkC   = api.color('--mf-ink');
+    var whiteC = api.color('--mf-white');
+    var mutedC = api.color('--mf-muted');
+    var muted2C= api.color('--mf-muted-2');
+    var downC  = api.color('--mf-down');
+    var primC  = api.color('--mf-primary');
+    var inkRGB   = parseHex(inkC)   || [234,236,239];
+    var backRGB  = parseHex(muted2C)|| [146,154,165];
+    var surfRGB  = parseHex(api.color('--mf-surface')) || [20,24,29];
+    var canvasRGB= parseHex(api.color('--mf-canvas'))  || [11,14,17];
+    var downRGB  = parseHex(downC)  || [240,69,90];
+    var primRGB  = parseHex(primC)  || [247,201,72];
+    // back stroke target = darker than surface so far ridges sink away
+    var deepRGB  = mix(surfRGB, canvasRGB, 0.55);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // subtle red ground under the tail zone (drawn first, behind everything)
+    drawTailGround(yaw, pitch, downRGB);
+
+    // strike plane BACK posts drawn before ridges so ridges can cross in front;
+    // (we draw the full dashed curtain here; ridges then paint over lower part)
+    var strikeGeo = drawStrikePlane(yaw, pitch, primRGB);
+
+    // ---- painter's algorithm: BACK (r=ROWS-1) -> FRONT (r=0) ----
+    var tailAnchor = null;
+    for (var r = ROWS - 1; r >= 0; r--){
+      var pts = drawRidge(r, yaw, pitch, tRender, null, deepRGB, inkRGB, surfRGB, downRGB);
+      // choose a tooltip anchor: a mid-depth ridge point just past the strike
+      if (r === (ROWS * 0.42 | 0)){
+        var ai = Math.round((STRIKE_U + 0.16) * (COLS - 1));
+        if (pts[ai]) tailAnchor = { x: pts[ai].x, y: pts[ai].y };
+      }
+    }
+
+    // re-draw strike TOP edge on top so it stays visible above the fills
+    ctx.save();
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1.1;
+    ctx.strokeStyle = 'rgba(' + primRGB[0] + ',' + primRGB[1] + ',' + primRGB[2] + ',0.5)';
+    ctx.beginPath(); ctx.moveTo(strikeGeo.front.x, strikeGeo.front.y); ctx.lineTo(strikeGeo.back.x, strikeGeo.back.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(strikeGeo.front.x, strikeGeo.front.y); ctx.lineTo(strikeGeo.frontB.x, strikeGeo.frontB.y); ctx.stroke();
+    ctx.restore();
+
+    // labels + tooltip in screen space (never rotated)
+    drawLabels(strikeGeo, tailAnchor, inkC, mutedC, downC, primC);
+  });
+});
+
+</script>
+<!-- ==== MODULE: GRAPH (injected) ==== -->
+<script>
+/* ==================================================================================
+   MODULE — graph : "ANGLERFISH · Relationship Graph Simulation"  (FORCE-DIRECTED NETWORK)
+   87 nodes · 141 edges. A pre-settled, gently-breathing signal graph. A dashed median
+   path (marching ants + travelling pulse) routes BEAR_CLUSTER → CATALYST_RING → MIRO ▲.
+   Layout is pre-relaxed synchronously in build() so reduced-motion draws a settled frame
+   and normal mode opens clean (no scramble). Node identities are seed-stable across resize.
+   ================================================================================== */
+MIRO.registerModule('graph', function (container, api) {
+  var canvas = document.createElement('canvas'); container.appendChild(canvas);
+  var ctx, W = 0, H = 0;
+
+  // ---- non-token hexes (per brief) ----
+  var MEDIAN_HEX = '#b12a3a';   // median-path node (dark red)
+  var HUB_HEX    = '#05070a';   // near-black cluster hub
+
+  // ---- class ids ----
+  var C_BEAR = 0, C_BULL = 1, C_MEDIAN = 2, C_CATALYST = 3, C_HUB = 4;
+
+  // ---- fixed topology, built once; positions rescale on resize ----
+  var built = false;
+  var nodes = [];      // {ax,ay (anchor 0..1), x,y (px), vx,vy, r, cls, deg, hub, label, phx,phy,amp}
+  var edges = [];      // {a,b, median(bool)}
+  var hubIdx = {};     // name -> node index
+  var pathNodes = [];  // ordered node indices for the median path
+  var pulses = [];     // travelling edge pulses {edge, p, spd}
+  var settledYet = false;
+
+  var SEED = 20260704;
+
+  // =============================== TOPOLOGY (once) ===============================
+  function buildTopology() {
+    var rng = mfRng(SEED);
+    nodes = []; edges = []; hubIdx = {}; pathNodes = []; pulses = [];
+
+    // --- 4 hubs with fixed normalized anchors (0..1 in the viz box) ---
+    // BEAR_CLUSTER left-mid · HUB_PRIME center-low · CATALYST_RING mid-right · MIRO right-mid-high
+    function addHub(name, ax, ay, cls, label) {
+      var i = nodes.length;
+      nodes.push({
+        ax: ax, ay: ay, x: 0, y: 0, vx: 0, vy: 0,
+        r: 0, cls: cls, deg: 0, hub: true, label: label,
+        phx: rng() * 6.283, phy: rng() * 6.283, amp: 0.7 + rng() * 0.4
+      });
+      hubIdx[name] = i;
+      return i;
+    }
+    var iBear = addHub('BEAR_CLUSTER', 0.16, 0.50, C_BEAR,     'BEAR_CLUSTER');
+    var iPrime = addHub('HUB_PRIME',   0.46, 0.74, C_HUB,      'HUB_PRIME');
+    var iCat  = addHub('CATALYST_RING',0.63, 0.40, C_CATALYST, 'CATALYST_RING');
+    var iMiro = addHub('MIRO',         0.87, 0.34, C_MEDIAN,   'ANGLER ▲');
+
+    // --- satellite node budget: 87 total → 83 satellites ---
+    // distribution: bear-leaning (left), bull-leaning (right/up), catalyst ring, median-path spine.
+    // seed each near a home zone by class → guarantees bias + prevents hairball/implosion.
+    function addSat(cls, hx, hy, spread) {
+      var a = rng() * 6.283, rad = spread * (0.25 + rng() * 0.85);
+      var ax = hx + Math.cos(a) * rad;
+      var ay = hy + Math.sin(a) * rad * 0.82;
+      ax = Math.max(0.04, Math.min(0.96, ax));
+      ay = Math.max(0.07, Math.min(0.93, ay));
+      var i = nodes.length;
+      nodes.push({
+        ax: ax, ay: ay, x: 0, y: 0, vx: 0, vy: 0,
+        r: 0, cls: cls, deg: 0, hub: false, label: null,
+        phx: rng() * 6.283, phy: rng() * 6.283, amp: 0.8 + rng() * 0.9
+      });
+      return i;
+    }
+
+    var bearSats = [], bullSats = [], catSats = [], medSats = [], primeSats = [];
+
+    // Bear cloud, left (30)
+    for (var b = 0; b < 30; b++) bearSats.push(addSat(C_BEAR, 0.17, 0.48, 0.20));
+    // Bull cloud, right/up (28)
+    for (var u = 0; u < 28; u++) bullSats.push(addSat(C_BULL, 0.80, 0.60, 0.22));
+    // Catalyst ring, mid-right (13) — a loose ring around the catalyst hub
+    for (var c = 0; c < 13; c++) {
+      var ang = (c / 13) * 6.283 + rng() * 0.3, rr = 0.11 + rng() * 0.04;
+      var ax = 0.63 + Math.cos(ang) * rr, ay = 0.40 + Math.sin(ang) * rr * 0.9;
+      ax = Math.max(0.04, Math.min(0.96, ax)); ay = Math.max(0.07, Math.min(0.93, ay));
+      var i = nodes.length;
+      nodes.push({ ax: ax, ay: ay, x: 0, y: 0, vx: 0, vy: 0, r: 0, cls: C_CATALYST, deg: 0, hub: false, label: null, phx: rng() * 6.283, phy: rng() * 6.283, amp: 0.8 + rng() * 0.7 });
+      catSats.push(i);
+    }
+    // Prime hub cluster, center-low (7)
+    for (var p = 0; p < 7; p++) primeSats.push(addSat(C_BULL, 0.46, 0.76, 0.13));
+    // Median-path chain nodes threaded between bear→catalyst→miro (5)
+    var medAnchors = [[0.34, 0.47], [0.47, 0.44], [0.58, 0.41], [0.72, 0.38], [0.80, 0.36]];
+    for (var m = 0; m < medAnchors.length; m++) {
+      var i2 = nodes.length;
+      nodes.push({ ax: medAnchors[m][0], ay: medAnchors[m][1], x: 0, y: 0, vx: 0, vy: 0, r: 0, cls: C_MEDIAN, deg: 0, hub: false, label: null, phx: rng() * 6.283, phy: rng() * 6.283, amp: 0.55 + rng() * 0.4 });
+      medSats.push(i2);
+    }
+    // node count so far: 4 + 30 + 28 + 13 + 7 + 5 = 87  ✓
+
+    // =============================== EDGES (target 141) ===============================
+    var seen = {};
+    function link(a, b, median) {
+      if (a === b) return false;
+      var k = a < b ? a + '_' + b : b + '_' + a;
+      if (seen[k]) return false;
+      seen[k] = 1;
+      edges.push({ a: a, b: b, median: !!median });
+      nodes[a].deg++; nodes[b].deg++;
+      return true;
+    }
+
+    // spokes: hub → its cluster
+    for (var s = 0; s < bearSats.length; s++) link(iBear, bearSats[s]);      // 30
+    for (var s2 = 0; s2 < bullSats.length; s2++) link(iMiro, bullSats[s2]);  // 28 (bull cloud hangs off MIRO/right)
+    for (var s3 = 0; s3 < catSats.length; s3++) link(iCat, catSats[s3]);     // 13
+    for (var s4 = 0; s4 < primeSats.length; s4++) link(iPrime, primeSats[s4]);//7
+    // running edges: 78
+
+    // intra-cluster mesh (a little connective tissue, capped) — bear
+    var meshTries = [
+      [bearSats, 12], [bullSats, 11], [catSats, 6], [primeSats, 3]
+    ];
+    for (var mt = 0; mt < meshTries.length; mt++) {
+      var arr = meshTries[mt][0], want = meshTries[mt][1], made = 0, guard = 0;
+      while (made < want && guard < want * 20) {
+        guard++;
+        var x = arr[(rng() * arr.length) | 0], y = arr[(rng() * arr.length) | 0];
+        if (link(x, y)) made++;
+      }
+    }
+    // + (12+11+6+3) = 32 → total 110
+
+    // inter-cluster bridges (catalyst is the crossroads)
+    link(iPrime, iCat); link(iPrime, iBear); link(iCat, iMiro);              // 3 → 113
+    // a few bear→prime and prime→bull crossings to balance the graph
+    var bridgePlan = [
+      [bearSats, primeSats, 5],
+      [primeSats, bullSats, 5],
+      [catSats, bullSats, 4],
+      [bearSats, catSats, 4]
+    ];
+    for (var bp = 0; bp < bridgePlan.length; bp++) {
+      var A = bridgePlan[bp][0], B = bridgePlan[bp][1], w2 = bridgePlan[bp][2], md = 0, g2 = 0;
+      while (md < w2 && g2 < w2 * 25) {
+        g2++;
+        var xa = A[(rng() * A.length) | 0], yb = B[(rng() * B.length) | 0];
+        if (link(xa, yb)) md++;
+      }
+    }
+    // + (5+5+4+4)=18 → total 131
+
+    // =============================== MEDIAN PATH SPINE ===============================
+    // ordered chain: BEAR_CLUSTER → med0..med4 → CATALYST_RING → MIRO ▲
+    pathNodes = [iBear, medSats[0], medSats[1], medSats[2], iCat, medSats[3], medSats[4], iMiro];
+    for (var pn = 0; pn < pathNodes.length - 1; pn++) {
+      link(pathNodes[pn], pathNodes[pn + 1], true);
+    }
+    // 7 median edges → total 138
+
+    // top up to exactly 141 with a few more balanced cross links
+    var topupPools = [bullSats, bearSats, catSats];
+    var need = 141 - edges.length, safety = 0;
+    while (edges.length < 141 && safety < 400) {
+      safety++;
+      var pool = topupPools[(rng() * topupPools.length) | 0];
+      var na = pool[(rng() * pool.length) | 0], nb = pool[(rng() * pool.length) | 0];
+      link(na, nb);
+    }
+
+    // radius by degree
+    for (var n = 0; n < nodes.length; n++) {
+      var nd = nodes[n];
+      if (nd.hub) {
+        nd.r = nd.cls === C_HUB ? 11 : (nd.cls === C_MEDIAN ? 9.5 : 9);
+      } else {
+        nd.r = 2.0 + Math.min(3.6, nd.deg * 0.7);
+      }
+    }
+
+    // seed a handful of travelling edge pulses on non-median edges
+    var pulseSeed = mfRng(SEED ^ 0x9e37);
+    for (var pz = 0; pz < 5; pz++) {
+      var eIdx;
+      do { eIdx = (pulseSeed() * edges.length) | 0; } while (edges[eIdx] && edges[eIdx].median);
+      pulses.push({ edge: eIdx, p: pulseSeed(), spd: 0.28 + pulseSeed() * 0.5 });
+    }
+
+    built = true;
+  }
+
+  // =============================== RELAXATION (synchronous) ===============================
+  // pre-settle positions in normalized [0..1] space so first frame is already resolved.
+  function relax(iters) {
+    var n = nodes.length;
+    // init positions at anchors
+    for (var i = 0; i < n; i++) { nodes[i].x = nodes[i].ax; nodes[i].y = nodes[i].ay; nodes[i].vx = 0; nodes[i].vy = 0; }
+
+    var REP = 0.00060;     // repulsion strength (normalized units)
+    var SPRING = 0.045;    // edge spring
+    var LREST = 0.085;     // rest length
+    var ANCHOR = 0.020;    // pull to anchor (weak) — hubs stronger
+    var DAMP = 0.82;
+
+    for (var it = 0; it < iters; it++) {
+      // repulsion — O(n^2), n≈87 → trivial
+      for (var a = 0; a < n; a++) {
+        var na = nodes[a];
+        for (var b = a + 1; b < n; b++) {
+          var nb = nodes[b];
+          var dx = na.x - nb.x, dy = na.y - nb.y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < 1e-6) { dx = (a - b) * 1e-3 + 1e-4; dy = 1e-4; d2 = dx * dx + dy * dy; }
+          if (d2 > 0.16) continue; // ignore far pairs (beyond ~0.4)
+          if (d2 < 0.002) d2 = 0.002; // floor the near field → f can't spike to infinity
+          var inv = 1 / d2;
+          var f = REP * inv;
+          var d = Math.sqrt(d2);
+          var ux = dx / d, uy = dy / d;
+          na.vx += ux * f; na.vy += uy * f;
+          nb.vx -= ux * f; nb.vy -= uy * f;
+        }
+      }
+      // springs
+      for (var e = 0; e < edges.length; e++) {
+        var ed = edges[e], p = nodes[ed.a], q = nodes[ed.b];
+        var dx2 = q.x - p.x, dy2 = q.y - p.y;
+        var dist = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 1e-4;
+        var rest = ed.median ? LREST * 1.25 : LREST;
+        var fs = SPRING * (dist - rest);
+        var ux2 = dx2 / dist, uy2 = dy2 / dist;
+        p.vx += ux2 * fs; p.vy += uy2 * fs;
+        q.vx -= ux2 * fs; q.vy -= uy2 * fs;
+      }
+      // anchor + integrate
+      for (var k = 0; k < n; k++) {
+        var nk = nodes[k];
+        var aStr = nk.hub ? ANCHOR * 5.5 : ANCHOR;
+        nk.vx += (nk.ax - nk.x) * aStr;
+        nk.vy += (nk.ay - nk.y) * aStr;
+        nk.vx *= DAMP; nk.vy *= DAMP;
+        // velocity cap — the real safety net against runaway momentum
+        var sp = Math.sqrt(nk.vx * nk.vx + nk.vy * nk.vy), MAXV = 0.02;
+        if (sp > MAXV) { nk.vx *= MAXV / sp; nk.vy *= MAXV / sp; }
+        nk.x += nk.vx; nk.y += nk.vy;
+        // clamp into box
+        nk.x = Math.max(0.03, Math.min(0.97, nk.x));
+        nk.y = Math.max(0.05, Math.min(0.95, nk.y));
+      }
+    }
+    // zero velocities after settle (breathing is layered on separately)
+    for (var z = 0; z < n; z++) { nodes[z].vx = 0; nodes[z].vy = 0; }
+    settledYet = true;
+  }
+
+  function build() {
+    if (!built) { buildTopology(); relax(280); }
+  }
+
+  // =============================== PROJECTION ===============================
+  var padX = 20, padY = 18;
+  function px(nx) { return padX + nx * (W - padX * 2); }
+  function py(ny) { return padY + ny * (H - padY * 2); }
+
+  // breathing offset (normalized) — small, fixed phase → alive but not jittery
+  function bx(nd, t) { return Math.sin(t * 0.32 + nd.phx) * 0.0060 * nd.amp; }
+  function by(nd, t) { return Math.cos(t * 0.27 + nd.phy) * 0.0060 * nd.amp; }
+
+  function nodeColor(cls) {
+    if (cls === C_BEAR) return api.color('--mf-down');
+    if (cls === C_BULL) return api.color('--mf-up');
+    if (cls === C_MEDIAN) return MEDIAN_HEX;
+    if (cls === C_CATALYST) return api.color('--mf-muted-2');
+    return HUB_HEX;
+  }
+
+  // =============================== DRAW ===============================
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    var still = api.reducedMotion;
+    var tt = still ? 0 : t;
+
+    // resolve live pixel positions (settled + breathing)
+    for (var i = 0; i < nodes.length; i++) {
+      var nd = nodes[i];
+      var ox = still ? 0 : bx(nd, tt), oy = still ? 0 : by(nd, tt);
+      nd._px = px(nd.x + ox);
+      nd._py = py(nd.y + oy);
+    }
+
+    var hair = api.color('--mf-hairline');
+
+    // ---- edges (thin, low-opacity) ----
+    ctx.lineWidth = 1;
+    for (var e = 0; e < edges.length; e++) {
+      var ed = edges[e];
+      if (ed.median) continue; // median edges drawn as the animated path
+      var A = nodes[ed.a], B = nodes[ed.b];
+      ctx.strokeStyle = (e & 3) === 0 ? 'rgba(30,35,41,0.17)' : 'rgba(30,35,41,0.09)';
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(A._px, A._py);
+      ctx.lineTo(B._px, B._py);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // ---- travelling signal pulses on random edges ----
+    if (!still) {
+      for (var pz = 0; pz < pulses.length; pz++) {
+        var pu = pulses[pz], ed2 = edges[pu.edge];
+        if (!ed2) continue;
+        var pa = nodes[ed2.a], pb = nodes[ed2.b];
+        var ease = pu.p < 0.5 ? 2 * pu.p * pu.p : 1 - Math.pow(-2 * pu.p + 2, 2) / 2;
+        var gx = pa._px + (pb._px - pa._px) * ease;
+        var gy = pa._py + (pb._py - pa._py) * ease;
+        var fade = Math.sin(pu.p * Math.PI);
+        ctx.globalAlpha = 0.5 * fade;
+        ctx.fillStyle = api.color('--mf-ink');
+        ctx.beginPath(); ctx.arc(gx, gy, 1.7, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // ---- median path (dashed marching ants) ----
+    var pathPts = [];
+    for (var q = 0; q < pathNodes.length; q++) {
+      var pnd = nodes[pathNodes[q]];
+      pathPts.push([pnd._px, pnd._py]);
+    }
+    // soft glow underlay
+    ctx.strokeStyle = 'rgba(177,42,58,0.30)';
+    ctx.lineWidth = 3.2; ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(pathPts[0][0], pathPts[0][1]);
+    for (var pp = 1; pp < pathPts.length; pp++) ctx.lineTo(pathPts[pp][0], pathPts[pp][1]);
+    ctx.stroke();
+    // dashed foreground
+    ctx.strokeStyle = MEDIAN_HEX;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = still ? 0 : -(t * 22) % 11;
+    ctx.beginPath(); ctx.moveTo(pathPts[0][0], pathPts[0][1]);
+    for (var pp2 = 1; pp2 < pathPts.length; pp2++) ctx.lineTo(pathPts[pp2][0], pathPts[pp2][1]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ---- travelling pulse dot along the median path ----
+    if (!still) {
+      // total path length in px
+      var segLen = [], total = 0;
+      for (var sL = 0; sL < pathPts.length - 1; sL++) {
+        var ddx = pathPts[sL + 1][0] - pathPts[sL][0], ddy = pathPts[sL + 1][1] - pathPts[sL][1];
+        var L = Math.sqrt(ddx * ddx + ddy * ddy); segLen.push(L); total += L;
+      }
+      var travel = ((t * 0.14) % 1) * total;
+      var acc = 0, sx = pathPts[0][0], sy = pathPts[0][1];
+      for (var sg = 0; sg < segLen.length; sg++) {
+        if (travel <= acc + segLen[sg] || sg === segLen.length - 1) {
+          var f = segLen[sg] > 0 ? (travel - acc) / segLen[sg] : 0;
+          f = Math.max(0, Math.min(1, f));
+          sx = pathPts[sg][0] + (pathPts[sg + 1][0] - pathPts[sg][0]) * f;
+          sy = pathPts[sg][1] + (pathPts[sg + 1][1] - pathPts[sg][1]) * f;
+          break;
+        }
+        acc += segLen[sg];
+      }
+      // bright pulse with soft halo
+      ctx.fillStyle = 'rgba(246,70,93,0.22)';
+      ctx.beginPath(); ctx.arc(sx, sy, 6.5, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#ff5d70';
+      ctx.beginPath(); ctx.arc(sx, sy, 2.6, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = api.color('--mf-white');
+      ctx.beginPath(); ctx.arc(sx, sy, 1.2, 0, 6.2832); ctx.fill();
+    }
+
+    // ---- nodes ----
+    for (var nd2i = 0; nd2i < nodes.length; nd2i++) {
+      var m = nodes[nd2i];
+      var col = nodeColor(m.cls);
+      if (m.hub) {
+        // hub: filled disc + ring
+        if (m.cls === C_HUB) {
+          ctx.fillStyle = HUB_HEX;
+          ctx.beginPath(); ctx.arc(m._px, m._py, m.r, 0, 6.2832); ctx.fill();
+          ctx.strokeStyle = api.color('--mf-hairline-2') || '#2b3139';
+          ctx.lineWidth = 1; ctx.stroke();
+        } else {
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.arc(m._px, m._py, m.r, 0, 6.2832); ctx.fill();
+          // subtle darker rim
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+        // MIRO gets a yellow accent ring
+        if (hubIdx['MIRO'] === nd2i) {
+          var pr = api.color('--mf-primary');
+          ctx.strokeStyle = pr; ctx.lineWidth = 1.4;
+          ctx.globalAlpha = still ? 0.9 : (0.55 + 0.35 * (0.5 + 0.5 * Math.sin(t * 2.2)));
+          ctx.beginPath(); ctx.arc(m._px, m._py, m.r + 3.5, 0, 6.2832); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      } else {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(m._px, m._py, m.r, 0, 6.2832); ctx.fill();
+      }
+    }
+
+    // ---- hub labels (mono, chip background) ----
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.textBaseline = 'middle';
+    var order = ['BEAR_CLUSTER', 'HUB_PRIME', 'CATALYST_RING', 'MIRO'];
+    for (var li = 0; li < order.length; li++) {
+      var hn = nodes[hubIdx[order[li]]];
+      var txt = hn.label;
+      var tw = ctx.measureText(txt).width;
+      // place label to a side that keeps it in-frame
+      var lx = hn._px + hn.r + 7, ly = hn._py;
+      if (lx + tw + 8 > W - 4) lx = hn._px - hn.r - 7 - tw; // flip to left
+      if (lx < 4) lx = 4;
+      // chip bg
+      ctx.textAlign = 'left';
+      var padc = 4, ch = 15;
+      ctx.fillStyle = 'rgba(11,14,17,0.82)';
+      roundRect(lx - padc, ly - ch / 2, tw + padc * 2, ch, 3);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(43,49,57,0.9)'; ctx.lineWidth = 1;
+      roundRect(lx - padc, ly - ch / 2, tw + padc * 2, ch, 3); ctx.stroke();
+      // text — MIRO in accent, others ink/muted
+      ctx.fillStyle = (order[li] === 'MIRO') ? api.color('--mf-primary')
+        : (order[li] === 'BEAR_CLUSTER') ? '#f6707e'
+        : '#c3c8cf';
+      ctx.fillText(txt, lx, ly + 0.5);
+    }
+
+    // ---- optional edge-distribution histogram (bottom-right), only if width allows ----
+    if (W > 480) drawHistogram(t);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // small edge-weight histogram — mix of red/green bars
+  var histVals = [0.42, 0.70, 1.0, 0.86, 0.58, 0.34, 0.20];
+  var histCols = [C_BEAR, C_BEAR, C_MEDIAN, C_BULL, C_BULL, C_BULL, C_BEAR];
+  function drawHistogram(t) {
+    var bw = 6, gap = 3, n = histVals.length;
+    var totalW = n * bw + (n - 1) * gap;
+    var hMax = 26;
+    var x0 = W - totalW - 12, base = H - 14;
+    // faint label
+    ctx.font = '8px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(112,122,138,0.75)';
+    ctx.fillText('EDGE DIST', x0, base - hMax - 5);
+    for (var i = 0; i < n; i++) {
+      var breathe = api.reducedMotion ? 1 : (0.86 + 0.14 * (0.5 + 0.5 * Math.sin(t * 1.3 + i * 0.8)));
+      var bh = histVals[i] * hMax * breathe;
+      var bx0 = x0 + i * (bw + gap);
+      var c = histCols[i];
+      ctx.fillStyle = c === C_BEAR ? api.color('--mf-down')
+        : c === C_BULL ? api.color('--mf-up') : MEDIAN_HEX;
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(bx0, base - bh, bw, bh);
+      ctx.globalAlpha = 1;
+    }
+    ctx.textBaseline = 'middle';
+  }
+
+  // =============================== LIFECYCLE ===============================
+  api.onResize(container, function (w, h) {
+    W = w; H = h;
+    ctx = api.fitCanvas(canvas, w, h);
+    build();                 // topology once; positions are normalized so no rebuild on resize
+  });
+
+  api.onFrame(function (t, dt) {
+    if (!ctx) return;
+    if (!api.reducedMotion) {
+      for (var i = 0; i < pulses.length; i++) {
+        pulses[i].p += pulses[i].spd * dt;
+        if (pulses[i].p >= 1) {
+          pulses[i].p -= 1;
+          // occasionally hop to a new non-median edge to keep it lively
+          if ((Math.sin((t + i) * 12.9) * 43758.5) % 1 > 0.6) {
+            var tries = 0, ne;
+            do { ne = (Math.abs(Math.sin((t + i * 7.3) * 91.7) * 1000) | 0) % edges.length; tries++; }
+            while (edges[ne] && edges[ne].median && tries < 8);
+            if (edges[ne] && !edges[ne].median) pulses[i].edge = ne;
+          }
+        }
+      }
+    }
+    draw(t);
+  });
+});
+
+</script>
+
+<script>MIRO.boot();</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# ⛔️ ความลับ — ห้าม commit เด็ดขาด
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# ไฟล์ระหว่างพัฒนา (เก็บ repo ให้เหลือแค่ dashboard + bot)
+build/
+.claude/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# screenshot / test artifacts
+.playwright-mcp/
+*.png
+*.jpeg
+*.jpg
