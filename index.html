@@ -395,8 +395,20 @@ window.MIRO = (function () {
     canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
     var ctx = canvas.getContext('2d'); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); return ctx;
   }
+  // Reduced-motion repaint: fitCanvas() clears the canvas on every resize measure,
+  // and with no running loop nothing repaints — so each measure re-queues one static frame.
+  var staticQueued = false;
+  function drawStaticFrame(){
+    staticQueued = false;
+    frames.forEach(function (f){ try { f(0, 0); } catch (e){ console.error(e); } });
+  }
+  function queueStaticFrame(){
+    if (!reduced || staticQueued) return;
+    staticQueued = true;
+    requestAnimationFrame(drawStaticFrame);
+  }
   function onResize(el, fn){
-    function measure(){ var r = el.getBoundingClientRect(); fn(Math.max(1, r.width), Math.max(1, r.height)); }
+    function measure(){ var r = el.getBoundingClientRect(); fn(Math.max(1, r.width), Math.max(1, r.height)); queueStaticFrame(); }
     if (window.ResizeObserver){ var ro = new ResizeObserver(measure); ro.observe(el); } else window.addEventListener('resize', measure);
     requestAnimationFrame(measure); requestAnimationFrame(function(){ requestAnimationFrame(measure); });
   }
@@ -407,7 +419,7 @@ window.MIRO = (function () {
   function boot(){
     if (started) return; started = true;
     mods.forEach(function (m){ var el = document.getElementById('slot-' + m.id); if (!el){ console.warn('MIRO: missing slot-' + m.id); return; } try { m.factory(el, api); } catch (e){ console.error('MIRO module ' + m.id + ' failed', e); } });
-    if (reduced){ requestAnimationFrame(function(){ frames.forEach(function (f){ try { f(0, 0); } catch (e){ console.error(e); } }); }); return; }
+    if (reduced){ queueStaticFrame(); return; }
     var last = performance.now();
     (function tick(now){
       var dt = Math.min(0.05, (now - last) / 1000); last = now; var t = now / 1000;
@@ -1663,10 +1675,10 @@ MIRO.registerModule('graph', function (container, api) {
     // init positions at anchors
     for (var i = 0; i < n; i++) { nodes[i].x = nodes[i].ax; nodes[i].y = nodes[i].ay; nodes[i].vx = 0; nodes[i].vy = 0; }
 
-    var REP = 0.00060;     // repulsion strength (normalized units)
+    var REP = 0.00003;     // repulsion strength (normalized units) — de-overlap only; must stay far below anchor pull or clusters explode
     var SPRING = 0.045;    // edge spring
     var LREST = 0.085;     // rest length
-    var ANCHOR = 0.020;    // pull to anchor (weak) — hubs stronger
+    var ANCHOR = 0.035;    // pull to anchor — the force that preserves the seeded cluster layout
     var DAMP = 0.82;
 
     for (var it = 0; it < iters; it++) {
@@ -1678,8 +1690,8 @@ MIRO.registerModule('graph', function (container, api) {
           var dx = na.x - nb.x, dy = na.y - nb.y;
           var d2 = dx * dx + dy * dy;
           if (d2 < 1e-6) { dx = (a - b) * 1e-3 + 1e-4; dy = 1e-4; d2 = dx * dx + dy * dy; }
-          if (d2 > 0.16) continue; // ignore far pairs (beyond ~0.4)
-          if (d2 < 0.002) d2 = 0.002; // floor the near field → f can't spike to infinity
+          if (d2 > 0.01) continue; // local-only repulsion (beyond ~0.1) — long range would push clusters apart wholesale
+          if (d2 < 0.0004) d2 = 0.0004; // floor the near field → f can't spike to infinity
           var inv = 1 / d2;
           var f = REP * inv;
           var d = Math.sqrt(d2);
@@ -1702,7 +1714,7 @@ MIRO.registerModule('graph', function (container, api) {
       // anchor + integrate
       for (var k = 0; k < n; k++) {
         var nk = nodes[k];
-        var aStr = nk.hub ? ANCHOR * 5.5 : ANCHOR;
+        var aStr = nk.hub ? ANCHOR * 18 : ANCHOR; // hubs are narrative landmarks — spring drag from ~30 spokes must not move them
         nk.vx += (nk.ax - nk.x) * aStr;
         nk.vy += (nk.ay - nk.y) * aStr;
         nk.vx *= DAMP; nk.vy *= DAMP;
